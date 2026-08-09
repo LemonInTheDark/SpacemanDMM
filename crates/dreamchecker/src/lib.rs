@@ -1387,6 +1387,7 @@ impl ControlFlow {
     pub fn end_loop(&mut self) {
         // Kill all the control flow stuff that is confined to our loop
         // We can't be sure that our loop will ever run, so we clear out EVERYTHING
+        self.might_flags |= self.will_flags;
         self.will_flags = ControlFlags::empty();
         // Might flags exsits so we can tell what might happen TO THE CURRENT SCOPE WE ARE IN
         // So it's not helpful to hold onto stuff that isn't return
@@ -1395,9 +1396,11 @@ impl ControlFlow {
 
     // For capping a loop we are sure will run
     pub fn end_guarenteed_loop(&mut self) {
-        // This one's more complicated, if we will NEVER continue or break then we're allowed to pass returns up the chain.
+        // This one's more complicated, if we will NEVER continue or break then we're allowed to pass returns up the chain as guarenteed.
         // If we could ever, then we're not
         if self.might_flags.intersects(ControlFlags::CONTINUE | ControlFlags::BREAK) {
+            // Return might happen, but it is not guarenteed due to the other control flow
+            self.might_flags |= self.will_flags & ControlFlags::RETURN;
             self.will_flags = ControlFlags::empty();
         } else {
             self.will_flags.remove(ControlFlags::CONTINUE | ControlFlags::BREAK);
