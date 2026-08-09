@@ -524,6 +524,7 @@ dependencies = [
 name = "dreamchecker"
 version = "1.11.0"
 dependencies = [
+ "bitflags 2.13.1",
  "chrono",
  "dreammaker",
  "foldhash",

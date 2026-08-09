@@ -151,6 +151,35 @@ fn guarenteed_for_return() {
     check_errors_match(code, GUARENTEED_FOR_RETURN_ERRORS);
 }
 
+#[test]
+fn unclear_for_return() {
+    let code = r##"
+/proc/test()
+    for(var/i in 1 to 2)
+        if(prob(50))
+            continue
+        return
+    return
+"##
+    .trim();
+    check_errors_match(code, NO_ERRORS);
+}
+
+#[test]
+fn nested_unclear_for_return() {
+    let code = r##"
+/proc/test()
+    for(var/i in 1 to 2)
+        if(prob(50))
+            if(prob(50))
+                continue
+        return
+    return
+"##
+    .trim();
+    check_errors_match(code, NO_ERRORS);
+}
+
 pub const IF_ARMS_ERRORS: &[(u32, u16, &str)] = &[
     (2, 7, "control flow condition is a static term"),
     (2, 7, "if condition is always true"),
