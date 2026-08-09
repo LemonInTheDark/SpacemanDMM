@@ -1395,7 +1395,7 @@ impl ControlFlow {
     }
 
     // For capping a loop we are sure will run
-    pub fn end_guarenteed_loop(&mut self) {
+    pub fn end_guaranteed_loop(&mut self) {
         // This one's more complicated, if we will NEVER continue or break then we're allowed to pass returns up the chain as guarenteed.
         // If we could ever, then we're not
         if self.might_flags.intersects(ControlFlags::CONTINUE | ControlFlags::BREAK) {
@@ -1739,7 +1739,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                         "do while terminates without ever reaching condition",
                     )
                     .register(self.context);
-                    state.end_guarenteed_loop();
+                    state.end_guaranteed_loop();
                     return state;
                 }
                 self.visit_expression(
@@ -1749,7 +1749,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                     &mut scoped_locals,
                 );
 
-                state.end_guarenteed_loop();
+                state.end_guaranteed_loop();
                 return state;
             },
             Statement::If { arms, else_arm } => {
@@ -1923,7 +1923,7 @@ impl<'o, 's> AnalyzeProc<'o, 's> {
                                 .register(self.context);
                             } else {
                                 // the body is ALWAYS executed, so it's safe to pass up some control fields
-                                state.end_guarenteed_loop();
+                                state.end_guaranteed_loop();
                                 return state;
                             }
                         }
