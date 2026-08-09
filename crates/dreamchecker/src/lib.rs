@@ -1396,7 +1396,7 @@ impl ControlFlow {
 
     // For capping a loop we are sure will run
     pub fn end_guaranteed_loop(&mut self) {
-        // This one's more complicated, if we will NEVER continue or break then we're allowed to pass returns up the chain as guarenteed.
+        // This one's more complicated, if we will NEVER continue or break then we're allowed to pass returns up the chain as guaranteed.
         // If we could ever, then we're not
         if self.might_flags.intersects(ControlFlags::CONTINUE | ControlFlags::BREAK) {
             // Return might happen, but it is not guarenteed due to the other control flow
