@@ -120,10 +120,10 @@ impl Auxtools {
     }
 
     fn send(&mut self, request: Request) -> Result<(), Box<dyn std::error::Error>> {
-        if let StreamState::Waiting(recv) = &self.stream {
-            if let Ok(stream) = recv.try_recv() {
-                self.stream = StreamState::Connected(stream);
-            }
+        if let StreamState::Waiting(recv) = &self.stream
+            && let Ok(stream) = recv.try_recv()
+        {
+            self.stream = StreamState::Connected(stream);
         }
 
         match &mut self.stream {

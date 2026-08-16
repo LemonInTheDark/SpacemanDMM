@@ -11,6 +11,7 @@ use get_size_derive::GetSize;
 use foldhash::fast::RandomState;
 use indexmap::IndexMap;
 
+use crate::ast::AbsolutePath;
 use crate::heap_size_of_index_map;
 
 use super::ast::{
@@ -208,10 +209,10 @@ impl Type {
     ) -> Option<&'a VarDeclaration> {
         let mut current = Some(self);
         while let Some(ty) = current {
-            if let Some(var) = ty.vars.get(name) {
-                if let Some(ref decl) = var.declaration {
-                    return Some(decl);
-                }
+            if let Some(var) = ty.vars.get(name)
+                && let Some(ref decl) = var.declaration
+            {
+                return Some(decl);
             }
             current = objtree.parent_of(ty);
         }
@@ -299,10 +300,12 @@ impl<'a> TypeRef<'a> {
     }
 
     /// Iterate over all child **paths**.
-    pub fn children<'b>(&'b self) -> impl Iterator<Item = TypeRef<'a>> + 'b {
-        self.children
+    pub fn children(&self) -> impl Iterator<Item = TypeRef<'a>> + 'a {
+        let tree = self.tree;
+        self.get()
+            .children
             .values()
-            .map(move |&idx| TypeRef::new(self.tree, idx))
+            .map(move |&idx| TypeRef::new(tree, idx))
     }
 
     /// Recursively visit this and all child **paths**.
@@ -341,20 +344,14 @@ impl<'a> TypeRef<'a> {
     }
 
     pub fn iter_parent_types(&self) -> impl Iterator<Item = TypeRef<'a>> {
-        struct ParentTypeIter<'a>(Option<TypeRef<'a>>);
-        impl<'a> Iterator for ParentTypeIter<'a> {
-            type Item = TypeRef<'a>;
-            fn next(&mut self) -> Option<TypeRef<'a>> {
-                match self.0 {
-                    Some(v) => {
-                        self.0 = v.parent_type();
-                        Some(v)
-                    },
-                    None => None,
-                }
-            }
-        }
-        ParentTypeIter(Some(*self))
+        let mut this = Some(*self);
+        std::iter::from_fn(move || match this {
+            Some(v) => {
+                this = v.parent_type();
+                Some(v)
+            },
+            None => None,
+        })
     }
 
     /// Recursively visit this and all parent **paths**.
@@ -474,10 +471,10 @@ impl<'a> TypeRef<'a> {
     pub fn get_proc_declaration(self, name: &str) -> Option<&'a ProcDeclaration> {
         let mut current: Option<TypeRef<'a>> = Some(self);
         while let Some(ty) = current {
-            if let Some(proc) = ty.get().procs.get(name) {
-                if let Some(decl) = proc.declaration.as_ref() {
-                    return Some(decl);
-                }
+            if let Some(proc) = ty.get().procs.get(name)
+                && let Some(decl) = proc.declaration.as_ref()
+            {
+                return Some(decl);
             }
             current = ty.parent_type();
         }
@@ -546,7 +543,7 @@ impl<'o> NavigatePathResult<'o> {
         }
     }
 
-    pub fn to_path(self) -> Vec<Ident> {
+    pub fn to_path(self) -> AbsolutePath {
         let mut path: Vec<Ident> = self
             .ty()
             .path
@@ -562,7 +559,7 @@ impl<'o> NavigatePathResult<'o> {
                 path.push(Ident::from_nonstatic(proc.name()));
             },
         }
-        path
+        AbsolutePath::from_iter(path)
     }
 }
 
@@ -845,7 +842,7 @@ impl Default for ObjectTreeBuilder {
         tree.graph.push(Type {
             path: String::new(),
             path_last_slash: usize::MAX,
-            location: Default::default(),
+            location: Location::INVALID,
             location_specificity: 0,
             vars: Default::default(),
             procs: Default::default(),
@@ -929,7 +926,7 @@ impl ObjectTreeBuilder {
                 NodeIndex::new(0)
             } else {
                 let constant_buf;
-                let mut parent_type_buf;
+                let parent_type_buf;
                 let empty_string;
                 let parent_type = if path == "/atom" {
                     "/datum"
@@ -950,7 +947,7 @@ impl ObjectTreeBuilder {
                         // or pre-evaluated constants (builtins).
                         let constant = if let Some(constant) = var.value.constant.as_ref() {
                             Ok(constant)
-                        } else if let Some(expr) = var.value.expression.clone() {
+                        } else if let Some(expr) = &var.value.expression {
                             match expr.simple_evaluate(location) {
                                 Ok(constant) => {
                                     constant_buf = constant;
@@ -974,11 +971,7 @@ impl ObjectTreeBuilder {
                                 parent_type = s;
                             },
                             Ok(Constant::Prefab(pop)) if pop.vars.is_empty() => {
-                                parent_type_buf = String::new();
-                                for piece in pop.path.iter() {
-                                    parent_type_buf.push('/');
-                                    parent_type_buf.push_str(piece);
-                                }
+                                parent_type_buf = pop.path.to_string();
                                 parent_type = &parent_type_buf;
                             },
                             Ok(other) => {
@@ -1285,7 +1278,7 @@ impl ObjectTreeBuilder {
                     proc.value[0].location,
                     format!("override of {}/{} precedes definition", node.path, name),
                 )
-                .set_severity(Severity::Hint)
+                .with_severity(Severity::Hint)
                 .with_errortype("override_precedes_definition")
                 .with_note(
                     location,
@@ -1304,7 +1297,7 @@ impl ObjectTreeBuilder {
 
     pub(crate) fn add_builtin_type(&mut self, elems: &[&'static str]) -> &mut Type {
         self.add_type(
-            Location::builtins(),
+            Location::BUILTINS,
             elems.iter().copied().map(Ident::from_static),
             elems.len() + 1,
             Default::default(),
@@ -1332,7 +1325,7 @@ impl ObjectTreeBuilder {
         elems: &[&'static str],
         value: Option<Constant>,
     ) -> &mut VarValue {
-        let location = Location::builtins();
+        let location = Location::BUILTINS;
         let mut path = elems.iter().copied().map(Ident::from_static);
         let len = elems.len() + 1;
 
@@ -1363,16 +1356,19 @@ impl ObjectTreeBuilder {
     ) -> &mut ProcValue {
         self.add_proc(
             &Default::default(),
-            Location::builtins(),
+            Location::BUILTINS,
             elems.iter().copied().map(Ident::from_static),
             elems.len() + 1,
             params
                 .iter()
                 .copied()
                 .map(|param| Parameter {
-                    // NB: not intering proc arguments yet...
-                    name: Ident::from(param),
-                    ..Default::default()
+                    var_type: Default::default(),
+                    name: Ident::from_static(param),
+                    default: None,
+                    input_type: None,
+                    in_list: None,
+                    location: Location::BUILTINS,
                 })
                 .collect(),
             None,

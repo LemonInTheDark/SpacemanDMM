@@ -10,6 +10,7 @@ inflate = "0.4.5"
 ndarray = "0.17.2"
 rand = "0.10.1"
 dreammaker = { path = "../dreammaker" }
+dmi = { path = "../dmi" }
 lodepng = "3.10.7"
 indexmap = "2.6.0"
 foldhash = "0.2.0"

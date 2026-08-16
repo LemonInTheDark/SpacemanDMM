@@ -272,12 +272,11 @@ impl Extools {
     pub fn line_to_offset(&mut self, proc_ref: &str, override_id: usize, line: i64) -> Option<i64> {
         let bc = self.bytecode(proc_ref, override_id);
         for instr in bc.iter() {
-            if instr.mnemonic == "DBG LINENO" {
-                if let Some(parsed) = parse_lineno(&instr.comment) {
-                    if parsed == line {
-                        return Some(instr.offset);
-                    }
-                }
+            if instr.mnemonic == "DBG LINENO"
+                && let Some(parsed) = parse_lineno(&instr.comment)
+                && parsed == line
+            {
+                return Some(instr.offset);
             }
         }
         None

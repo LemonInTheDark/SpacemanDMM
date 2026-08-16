@@ -1,9 +1,4 @@
-extern crate dreamchecker as dc;
-
-use dc::test_helpers::check_errors_match;
-use dc::test_helpers::parse_a_file_for_test;
-
-pub const NO_PARENT_ERRORS: &[(u32, u16, &str)] = &[(2, 5, "proc has no parent: /mob/proc/test")];
+use dreamchecker::test_helpers::*;
 
 #[test]
 fn no_parent() {
@@ -13,7 +8,10 @@ fn no_parent() {
     return
 "##
     .trim();
-    check_errors_match(code, NO_PARENT_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (2, 5, "proc has no parent: /mob/proc/test"),
+    ]);
 }
 
 #[test]
@@ -26,21 +24,8 @@ fn return_type() {
     return
 "##
     .trim();
-    let context = parse_a_file_for_test(code);
-    let error_text: Vec<String> = context
-        .errors()
-        .iter()
-        .map(|error| format!("{error}"))
-        .collect();
-    if !error_text.is_empty() {
-        panic!("\n{}", error_text.join("\n"))
-    }
+    check_errors_match(code, &[]);
 }
-
-pub const RETURN_TYPE_FAILURE_ERRORS: &[(u32, u16, &str)] = &[
-    (4, 13, "cannot specify a return type for a proc override"),
-    (7, 22, "bad input type: 'incorrect'"),
-];
 
 #[test]
 fn return_type_failure() {
@@ -55,14 +40,12 @@ fn return_type_failure() {
     return
 "##
     .trim();
-    check_errors_match(code, RETURN_TYPE_FAILURE_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (4, 13, "cannot specify a return type for a proc override"),
+        (7, 22, "bad input type: 'incorrect'"),
+    ]);
 }
-
-pub const EMPTY_LIST_FIND_ERRORS: &[(u32, u16, &str)] = &[ (
-    3,
-    20,
-    "list.Find() with no arguments searches for null, write Find(null) if that is intended",
-) ];
 
 #[test]
 fn empty_list_find_warns() {
@@ -72,5 +55,8 @@ fn empty_list_find_warns() {
     return list_foo.Find()
 "##
     .trim();
-    check_errors_match(code, EMPTY_LIST_FIND_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (3, 20, "list.Find() with no arguments searches for null, write Find(null) if that is intended"),
+    ]);
 }

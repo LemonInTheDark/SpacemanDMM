@@ -1,8 +1,4 @@
-extern crate dreamchecker as dc;
-
-use dc::test_helpers::*;
-
-pub const VAR_DEC_ERRORS: &[(u32, u16, &str)] = &[(5, 12, "/mob/subtype redeclares var \"foo\"")];
+use dreamchecker::test_helpers::*;
 
 #[test]
 fn var_redec() {
@@ -14,11 +10,16 @@ fn var_redec() {
     var/foo
 "##
     .trim();
-    check_errors_match(code, VAR_DEC_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (5, 12, "/mob/subtype redeclares var \"foo\""),
+    ]);
 }
 
-pub const VAR_FINAL_ERRORS: &[(u32, u16, &str)] =
-    &[(5, 9, "/mob/subtype overrides final var \"foo\"")];
+#[rustfmt::skip]
+const VAR_FINAL_ERRORS: &[(u32, u16, &str)] = &[
+    (5, 9, "/mob/subtype overrides final var \"foo\""),
+];
 
 #[test]
 fn var_spaceman_final() {
@@ -46,8 +47,6 @@ fn var_final() {
     check_errors_match(code, VAR_FINAL_ERRORS);
 }
 
-pub const VAR_UNDECL_ERRORS: &[(u32, u16, &str)] = &[(6, 5, "undefined var: \"bar\"")];
-
 #[test]
 fn var_undecl() {
     let code = r##"
@@ -59,5 +58,8 @@ fn var_undecl() {
     bar++
 "##
     .trim();
-    check_errors_match(code, VAR_UNDECL_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (6, 5, "undefined var: \"bar\""),
+    ]);
 }

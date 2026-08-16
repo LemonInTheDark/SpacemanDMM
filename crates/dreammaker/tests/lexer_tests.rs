@@ -1,12 +1,13 @@
 extern crate dreammaker as dm;
 
+use dm::FileId;
 use dm::lexer::Punctuation::*;
 use dm::lexer::Token::*;
 use dm::lexer::*;
 
 fn lex(f: &str) -> Vec<Token> {
     let context = Default::default();
-    let result = Lexer::new(&context, Default::default(), f.as_bytes())
+    let result = Lexer::new(&context, FileId::INVALID, f.as_bytes())
         .map(|t| t.token)
         .collect();
     context.assert_success();
@@ -68,7 +69,7 @@ fn empty_block_comment() {
 
 #[test]
 fn raw_strings() {
-    let desired = Token::String("content".to_owned());
+    let desired = Token::String("content".into());
     let stuff = lex(r#"
 @"content"
 @xcontentx
@@ -93,21 +94,21 @@ fn heredoc_with_quotes() {
     assert_eq!(
         lex(r#"{"foo"bar"}"#),
         vec![
-            Token::String(r#"foo"bar"#.to_owned()),
+            Token::String(r#"foo"bar"#.into()),
             Token::Punct(Punctuation::Newline),
         ]
     );
     assert_eq!(
         lex(r#"{"foo""bar"}"#),
         vec![
-            Token::String(r#"foo""bar"#.to_owned()),
+            Token::String(r#"foo""bar"#.into()),
             Token::Punct(Punctuation::Newline),
         ]
     );
     assert_eq!(
         lex(r#"{"foo"""bar"}"#),
         vec![
-            Token::String(r#"foo"""bar"#.to_owned()),
+            Token::String(r#"foo"""bar"#.into()),
             Token::Punct(Punctuation::Newline),
         ]
     );
@@ -116,28 +117,28 @@ fn heredoc_with_quotes() {
     assert_eq!(
         lex(r#"{""}"#),
         vec![
-            Token::String(r#""#.to_owned()),
+            Token::String(r#""#.into()),
             Token::Punct(Punctuation::Newline),
         ]
     );
     assert_eq!(
         lex(r#"{"""}"#),
         vec![
-            Token::String(r#"""#.to_owned()),
+            Token::String(r#"""#.into()),
             Token::Punct(Punctuation::Newline),
         ]
     );
     assert_eq!(
         lex(r#"{""""}"#),
         vec![
-            Token::String(r#""""#.to_owned()),
+            Token::String(r#""""#.into()),
             Token::Punct(Punctuation::Newline),
         ]
     );
     assert_eq!(
         lex(r#"{"""""}"#),
         vec![
-            Token::String(r#"""""#.to_owned()),
+            Token::String(r#"""""#.into()),
             Token::Punct(Punctuation::Newline),
         ]
     );

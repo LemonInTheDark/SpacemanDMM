@@ -1,6 +1,3 @@
-extern crate chrono;
-extern crate git2;
-
 use std::env;
 use std::fs::File;
 use std::io::Write;
@@ -10,12 +7,10 @@ fn main() {
     // build info
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     let mut f = File::create(out_dir.join("build-info.txt")).unwrap();
-
     match read_commit() {
-        Ok(commit) => writeln!(f, "commit: {commit}").unwrap(),
+        Ok((commit, date)) => writeln!(f, "commit: {commit}\ndate: {date}").unwrap(),
         Err(err) => println!("cargo:warning=Failed to fetch commit info: {err}"),
     }
-    writeln!(f, "build date: {}", chrono::Utc::now().date_naive()).unwrap();
 
     // extools bundling
     println!("cargo:rustc-cfg=extools_bundle");
@@ -38,9 +33,9 @@ fn main() {
     );
 }
 
-fn read_commit() -> Result<String, git2::Error> {
+fn read_commit() -> Result<(String, String), git2::Error> {
     let repo = git2::Repository::discover(".")?;
-    let head = repo.head()?.peel_to_commit()?.id();
+    let head = repo.head()?.peel_to_commit()?;
 
     let mut all_tags = Vec::new();
     repo.tag_foreach(|oid, _| {
@@ -52,7 +47,7 @@ fn read_commit() -> Result<String, git2::Error> {
     for tag_id in all_tags {
         if let Ok(possible_tag) = repo.find_tag(tag_id) {
             let tag_commit = possible_tag.as_object().peel_to_commit()?.id();
-            let (ahead, behind) = repo.graph_ahead_behind(head, tag_commit)?;
+            let (ahead, behind) = repo.graph_ahead_behind(head.id(), tag_commit)?;
             if behind == 0 {
                 match best {
                     None => best = Some(ahead),
@@ -75,7 +70,12 @@ fn read_commit() -> Result<String, git2::Error> {
         ),
     }
 
-    Ok(head.to_string())
+    Ok((
+        head.id().to_string(),
+        chrono::DateTime::from_timestamp_secs(head.time().seconds())
+            .unwrap()
+            .to_string(),
+    ))
 }
 
 fn download_dll(out_dir: &Path, fname: &str, tag: &str, url: &str, sha256: &str) {
@@ -87,10 +87,10 @@ fn download_dll(out_dir: &Path, fname: &str, tag: &str, url: &str, sha256: &str)
     );
     println!("cargo:rustc-env=BUNDLE_VERSION_{fname}={tag}");
 
-    if let Ok(digest) = sha256::try_digest(&full_path) {
-        if digest == sha256 {
-            return;
-        }
+    if let Ok(digest) = sha256::try_digest(&full_path)
+        && digest == sha256
+    {
+        return;
     }
 
     std::io::copy(

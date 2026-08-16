@@ -32,7 +32,7 @@ pub fn check_switch_rand_range(
                 } else {
                     DMError::new(location, format!("Case range '{start} to {end}' will never trigger as it is outside the rand() range {rand_start} to {rand_end}"))
                         .with_component(dm::Component::DreamChecker)
-                        .set_severity(Severity::Warning)
+                        .with_severity(Severity::Warning)
                         .register(context);
                 }
             }
@@ -62,7 +62,7 @@ pub fn check_switch_rand_range(
             ),
         )
         .with_component(dm::Component::DreamChecker)
-        .set_severity(Severity::Warning)
+        .with_severity(Severity::Warning)
         .register(context);
     }
 }
@@ -70,16 +70,12 @@ pub fn check_switch_rand_range(
 fn get_case_range(case: &Case, location: Location) -> Option<(f32, f32)> {
     match case {
         Case::Exact(value) => {
-            let value = value
-                .to_owned()
-                .simple_evaluate(location)
-                .ok()?
-                .to_float()?;
+            let value = value.simple_evaluate(location).ok()?.to_float()?;
             Some((value, value))
         },
         Case::Range(min, max) => {
-            let min = min.to_owned().simple_evaluate(location).ok()?.to_float()?;
-            let max = max.to_owned().simple_evaluate(location).ok()?.to_float()?;
+            let min = min.simple_evaluate(location).ok()?.to_float()?;
+            let max = max.simple_evaluate(location).ok()?.to_float()?;
             Some((min, max))
         },
     }
@@ -98,13 +94,10 @@ fn get_rand_range(maybe_rand: &Expression) -> Option<(i32, i32)> {
 
     let (min, max) = match rand_args {
         [min, max] => (
-            min.to_owned().simple_evaluate(location).ok()?.to_float()?,
-            max.to_owned().simple_evaluate(location).ok()?.to_float()?,
+            min.simple_evaluate(location).ok()?.to_float()?,
+            max.simple_evaluate(location).ok()?.to_float()?,
         ),
-        [max] => (
-            0.,
-            max.to_owned().simple_evaluate(location).ok()?.to_float()?,
-        ),
+        [max] => (0., max.simple_evaluate(location).ok()?.to_float()?),
         _ => return None,
     };
 

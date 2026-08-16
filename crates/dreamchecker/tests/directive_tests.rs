@@ -1,9 +1,9 @@
-extern crate dreamchecker as dc;
+use dreamchecker::test_helpers::*;
 
-use dc::test_helpers::*;
-
-pub const TRUE_SUB_ERRORS: &[(u32, u16, &str)] =
-    &[(4, 18, "proc never calls parent, required by /mob/proc/test")];
+#[rustfmt::skip]
+const TRUE_SUB_ERRORS: &[(u32, u16, &str)] = &[
+    (4, 18, "proc never calls parent, required by /mob/proc/test"),
+];
 
 #[test]
 fn true_substitution() {
@@ -44,11 +44,13 @@ fn call_parent_disable() {
     return
 "##
     .trim();
-    check_errors_match(code, NO_ERRORS);
+    check_errors_match(code, &[]);
 }
 
-pub const NO_OVERRIDE_ERRORS: &[(u32, u16, &str)] =
-    &[(4, 18, "proc overrides parent, prohibited by /mob/proc/test")];
+#[rustfmt::skip]
+const NO_OVERRIDE_ERRORS: &[(u32, u16, &str)] = &[
+    (4, 18, "proc overrides parent, prohibited by /mob/proc/test"),
+];
 
 #[test]
 fn no_override() {
@@ -76,7 +78,8 @@ fn final_proc() {
     check_errors_match(code, NO_OVERRIDE_ERRORS);
 }
 
-pub const NO_OVERRIDE_DISABLE_ERRORS: &[(u32, u16, &str)] = &[
+#[rustfmt::skip]
+const NO_OVERRIDE_DISABLE_ERRORS: &[(u32, u16, &str)] = &[
     (5, 5, "/mob/subtype/proc/test sets SpacemanDMM_should_not_override false, but it cannot be disabled."),
     (4, 18, "proc overrides parent, prohibited by /mob/proc/test"),
 ];
@@ -120,10 +123,8 @@ fn can_be_redefined() {
     return
 "##
     .trim();
-    check_errors_match(code, NO_ERRORS);
+    check_errors_match(code, &[]);
 }
-
-pub const NO_CAN_BE_REDEFINED_ERRORS: &[(u32, u16, &str)] = &[(4, 10, "redefining proc /mob/test")];
 
 #[test]
 fn no_can_be_redefined() {
@@ -135,11 +136,11 @@ fn no_can_be_redefined() {
     return
 "##
     .trim();
-    check_errors_match(code, NO_CAN_BE_REDEFINED_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (4, 10, "redefining proc /mob/test"),
+    ]);
 }
-
-pub const NO_CALL_PARENT_ERRORS: &[(u32, u16, &str)] =
-    &[(4, 18, "proc calls parent, prohibited by /mob/proc/test")];
 
 #[test]
 fn should_not_call_parent() {
@@ -151,7 +152,10 @@ fn should_not_call_parent() {
     return ..()
 "##
     .trim();
-    check_errors_match(code, NO_CALL_PARENT_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (4, 18, "proc calls parent, prohibited by /mob/proc/test"),
+    ]);
 }
 
 #[test]
@@ -165,7 +169,7 @@ fn should_not_call_parent_override() {
     return ..()
 "##
     .trim();
-    check_errors_match(code, NO_ERRORS);
+    check_errors_match(code, &[]);
 }
 
 #[test]
@@ -181,11 +185,8 @@ fn should_not_call_parent_grandchild() {
     return ..()
 "##
     .trim();
-    check_errors_match(code, NO_ERRORS);
+    check_errors_match(code, &[]);
 }
-
-pub const NO_CALL_PARENT_GAP_ERRORS: &[(u32, u16, &str)] =
-    &[(4, 29, "proc calls parent, prohibited by /mob/proc/test")];
 
 #[test]
 fn should_not_call_parent_grandchild_gap() {
@@ -197,5 +198,8 @@ fn should_not_call_parent_grandchild_gap() {
     return ..()
 "##
     .trim();
-    check_errors_match(code, NO_CALL_PARENT_GAP_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (4, 29, "proc calls parent, prohibited by /mob/proc/test")
+    ]);
 }

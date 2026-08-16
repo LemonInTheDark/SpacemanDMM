@@ -27,7 +27,7 @@ sdl3-main = "0.5.4"
 ouroboros = "0.18.5"
 
 [build-dependencies]
-chrono = "0.4.38"
+chrono.workspace = true
 git2.workspace = true
 
 [target.wasm32-unknown-emscripten.dependencies]

@@ -1,12 +1,4 @@
-extern crate dreamchecker as dc;
-
-use dc::test_helpers::check_errors_match;
-
-pub const LOCAL_SCOPE_ERRORS: &[(u32, u16, &str)] = &[
-    (7, 9, "undefined var: \"bar\""),
-    (9, 5, "undefined var: \"bar\""),
-    (13, 5, "undefined var: \"bar\""),
-];
+use dreamchecker::test_helpers::*;
 
 #[test]
 fn local_scope() {
@@ -26,5 +18,10 @@ fn local_scope() {
     bar++
 "##
     .trim();
-    check_errors_match(code, LOCAL_SCOPE_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (7, 9, "undefined var: \"bar\""),
+        (9, 5, "undefined var: \"bar\""),
+        (13, 5, "undefined var: \"bar\""),
+    ]);
 }

@@ -1,13 +1,12 @@
 //! DMI metadata parsing and representation.
 
 use foldhash::{HashMap, HashMapExt};
+use lodepng::Decoder;
+
 use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::io;
 use std::path::Path;
-
-use derivative::Derivative;
-use lodepng::Decoder;
 
 const EXPECTED_VERSION_LINE: &str = "version = 4.0";
 
@@ -218,15 +217,13 @@ pub struct Metadata {
 }
 
 /// The metadata belonging to a single icon state.
-#[derive(Derivative, Debug, Clone)]
-#[derivative(PartialEq)]
+#[derive(Debug, Clone)]
 pub struct State {
     /// The state's name, corresponding to the `icon_state` var.
     pub name: String,
     /// Whether this is a movement state (shown during gliding).
     pub movement: bool,
     /// The number of frames in the spritesheet before this state's first frame.
-    #[derivative(PartialEq = "ignore")]
     pub offset: usize,
     /// 0 for infinite, 1+ for finite.
     pub loop_: u32,
@@ -235,6 +232,19 @@ pub struct State {
     pub rewind: bool,
     pub dirs: Dirs,
     pub frames: Frames,
+}
+
+impl PartialEq for State {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.movement == other.movement
+            // SKIP self.offset
+            && self.loop_ == other.loop_
+            && self.duplicate_index == other.duplicate_index
+            && self.rewind == other.rewind
+            && self.dirs == other.dirs
+            && self.frames == other.frames
+    }
 }
 
 /// How many directions a state has.
@@ -260,7 +270,6 @@ pub enum Frames {
 impl Metadata {
     /// Read the bitmap and DMI metadata from a given file in a single pass.
     pub fn from_file(path: &Path) -> io::Result<(lodepng::Bitmap<lodepng::RGBA>, Metadata)> {
-        let path = &crate::fix_case(path);
         Self::from_bytes(&std::fs::read(path)?)
     }
 
@@ -444,14 +453,18 @@ fn parse_metadata(data: &str) -> io::Result<Metadata> {
                     frames_so_far += state.frames.count() * state.dirs.count();
                     metadata.states.push(state);
                 }
-                let unquoted = value[1..value.len() - 1].to_owned(); // TODO: unquote
-                assert!(!unquoted.contains('\\') && !unquoted.contains('"'));
+                let Some(name) = unquote(value) else {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("Malformed dmi state name line `{line}`"),
+                    ));
+                };
 
-                let count = duplicate_map.entry(unquoted.clone()).or_insert(0);
+                let count = duplicate_map.entry(name.clone()).or_insert(0);
 
                 let new_state = State {
                     offset: frames_so_far,
-                    name: unquoted,
+                    name,
                     loop_: 0,
                     duplicate_index: *count,
                     rewind: false,
@@ -518,12 +531,39 @@ fn parse_metadata(data: &str) -> io::Result<Metadata> {
             "rewind" => state.as_mut().unwrap().rewind = value.parse::<u8>().unwrap() != 0,
             "hotspot" => { /* TODO */ },
             "movement" => state.as_mut().unwrap().movement = value.parse::<u8>().unwrap() != 0,
-            _ => panic!(),
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Unknown dmi metadata line `{line}`"),
+                ));
+            },
         }
     }
     metadata.states.extend(state);
 
     Ok(metadata)
+}
+
+fn unquote(value: &str) -> Option<String> {
+    if !value.starts_with('"') || !value.ends_with('"') {
+        return None;
+    }
+    let value = &value[1..value.len() - 1];
+    if !value.contains('\\') && !value.contains('"') {
+        return Some(value.to_owned());
+    }
+    let mut result = String::with_capacity(value.len());
+    let mut iter = value.chars();
+    while let Some(ch) = iter.next() {
+        if ch == '\\' {
+            result.push(iter.next()?);
+        } else if ch == '"' {
+            return None;
+        } else {
+            result.push(ch);
+        }
+    }
+    Some(result)
 }
 
 #[cfg(test)]

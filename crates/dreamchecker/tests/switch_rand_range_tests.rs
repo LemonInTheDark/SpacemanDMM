@@ -1,19 +1,4 @@
-extern crate dreamchecker as dc;
-
-use dc::test_helpers::*;
-
-pub const SWITCH_RAND_INCOMPLETE_ERRORS: &[(u32, u16, &str)] = &[
-    (
-        4,
-        19,
-        "Case range '0 to 0' will never trigger as it is outside the rand() range 1 to 3",
-    ),
-    (
-        2,
-        5,
-        "Switch branches on rand() with range 1 to 3 but no case branch triggers for 3",
-    ),
-];
+use dreamchecker::test_helpers::*;
 
 #[test]
 fn switch_rand_incomplete() {
@@ -28,14 +13,12 @@ fn switch_rand_incomplete() {
             return
 "##
     .trim();
-    check_errors_match(code, SWITCH_RAND_INCOMPLETE_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (4, 19, "Case range '0 to 0' will never trigger as it is outside the rand() range 1 to 3"),
+        (2, 5, "Switch branches on rand() with range 1 to 3 but no case branch triggers for 3"),
+    ]);
 }
-
-pub const SWITCH_RAND_WITH_EVALUATION_ERRORS: &[(u32, u16, &str)] = &[(
-    2,
-    5,
-    "Switch branches on rand() with range 2 to 3 but no case branch triggers for 3",
-)];
 
 #[test]
 fn switch_rand_with_evaluation() {
@@ -46,7 +29,10 @@ fn switch_rand_with_evaluation() {
             return
 "##
     .trim();
-    check_errors_match(code, SWITCH_RAND_WITH_EVALUATION_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (2, 5, "Switch branches on rand() with range 2 to 3 but no case branch triggers for 3"),
+    ]);
 }
 
 #[test]
@@ -63,12 +49,6 @@ fn switch_rand_case_ranges() {
     check_errors_match(code, &[]);
 }
 
-pub const SWITCH_RAND_DEFAULT_ERRORS: &[(u32, u16, &str)] = &[(
-    4,
-    19,
-    "Case range '5 to 5' will never trigger as it is outside the rand() range 1 to 4",
-)];
-
 #[test]
 fn switch_rand_default() {
     let code = r##"
@@ -82,7 +62,10 @@ fn switch_rand_default() {
             return
 "##
     .trim();
-    check_errors_match(code, SWITCH_RAND_DEFAULT_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (4, 19, "Case range '5 to 5' will never trigger as it is outside the rand() range 1 to 4"),
+    ]);
 }
 
 #[test]

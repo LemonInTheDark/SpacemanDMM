@@ -17,14 +17,14 @@ const DM_BUILD: i32 = 1666;
 pub fn default_defines(defines: &mut DefineMap) {
     use super::lexer::Token::*;
     use super::lexer::*;
-    let location = Location::builtins();
+    let location = Location::BUILTINS;
 
     // #define EXCEPTION(value) new /exception(value)
     defines.insert(
         ident!("EXCEPTION"),
         (
             location,
-            Define::Function {
+            Define {
                 params: vec![ident!("value")],
                 variadic: false,
                 subst: vec![
@@ -45,7 +45,7 @@ pub fn default_defines(defines: &mut DefineMap) {
         ident!("ASSERT"),
         (
             location,
-            Define::Function {
+            Define {
                 params: vec![ident!("expression")],
                 variadic: false,
                 subst: vec![
@@ -59,14 +59,14 @@ pub fn default_defines(defines: &mut DefineMap) {
                     Punct(Punctuation::LBrace),
                     Ident(ident!("CRASH"), false),
                     Punct(Punctuation::LParen),
-                    InterpStringBegin("".to_owned()),
+                    InterpStringBegin(ident!("")),
                     Ident(ident!("__FILE__"), false),
-                    InterpStringPart(":".to_owned()),
+                    InterpStringPart(ident!(":")),
                     Ident(ident!("__LINE__"), false),
-                    InterpStringPart(":Assertion Failed: ".to_owned()),
+                    InterpStringPart(ident!(":Assertion Failed: ")),
                     Punct(Punctuation::Hash),
                     Ident(ident!("expression"), false),
-                    InterpStringEnd("".to_owned()),
+                    InterpStringEnd(ident!("")),
                     Punct(Punctuation::RParen),
                     Punct(Punctuation::RBrace),
                 ],
@@ -80,13 +80,7 @@ pub fn default_defines(defines: &mut DefineMap) {
         for &(name, ref value) in values {
             let previous = defines.insert(
                 crate::ast::Ident::from_static(name),
-                (
-                    Location::builtins(),
-                    Define::Constant {
-                        subst: value.to_vec(),
-                        docs: Default::default(),
-                    },
-                ),
+                (Location::BUILTINS, Define::constant(value.to_vec())),
             );
             assert!(previous.is_none(), "redefined: {}", name);
         }
@@ -238,11 +232,7 @@ pub fn default_defines(defines: &mut DefineMap) {
 pub fn register_builtins(tree: &mut ObjectTreeBuilder) {
     fn path(path: &'static [&'static str]) -> Constant {
         Constant::Prefab(Box::new(super::constants::Pop {
-            path: path
-                .iter()
-                .copied()
-                .map(Ident::from_static)
-                .collect::<Box<[_]>>(),
+            path: path.iter().copied().map(Ident::from_static).collect(),
             vars: Default::default(),
         }))
     }

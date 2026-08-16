@@ -106,10 +106,9 @@ pub fn debugger_main<I: Iterator<Item = String>>(mut args: I) {
         .expect("did not detect a .dme");
     let mut ctx = dm::Context::default();
     ctx.autodetect_config(&environment);
-    let mut pp = dm::preprocessor::Preprocessor::new(&ctx, environment).unwrap();
+    let mut pp = dm::Preprocessor::new(&ctx, environment).unwrap();
     let objtree = {
-        let mut parser =
-            dm::parser::Parser::new(&ctx, dm::indents::IndentProcessor::new(&ctx, &mut pp));
+        let mut parser = dm::Parser::new(&ctx, &mut pp);
         parser.enable_procs();
         Arc::new(parser.parse_object_tree())
     };
@@ -206,15 +205,15 @@ fn get_proc<'o>(
     }
     let typename = bits.join("/");
 
-    if let Some(ty) = objtree.find(&typename) {
-        if let Some(ty_proc) = ty.get().procs.get(procname) {
-            // Don't consider (most) builtins against the override_id count.
-            return ty_proc
-                .value
-                .iter()
-                .skip_while(|pv| pv.location.is_builtins() && !STDDEF_PROCS.contains(&proc_ref))
-                .nth(override_id);
-        }
+    if let Some(ty) = objtree.find(&typename)
+        && let Some(ty_proc) = ty.get().procs.get(procname)
+    {
+        // Don't consider (most) builtins against the override_id count.
+        return ty_proc
+            .value
+            .iter()
+            .skip_while(|pv| pv.location.is_builtins() && !STDDEF_PROCS.contains(&proc_ref))
+            .nth(override_id);
     }
     None
 }
@@ -828,7 +827,7 @@ impl Debugger {
         &mut self,
         params: P<SetFunctionBreakpoints>,
     ) -> R<SetFunctionBreakpoints> {
-        let file_id = FileId::default();
+        let file_id = FileId::INVALID;
 
         let inputs = params.breakpoints;
         let mut breakpoints = Vec::new();
@@ -982,20 +981,20 @@ impl Debugger {
                     if let Some(proc) = self.db.get_proc(&ex_frame.proc, ex_frame.override_id) {
                         if proc.location.is_builtins() {
                             // `stddef.dm` proc.
-                            if let Some(stddef_dm_info) = self.stddef_dm_info.as_ref() {
-                                if let Some(proc) = get_proc(
+                            if let Some(stddef_dm_info) = self.stddef_dm_info.as_ref()
+                                && let Some(proc) = get_proc(
                                     &stddef_dm_info.objtree,
                                     &ex_frame.proc,
                                     ex_frame.override_id,
-                                ) {
-                                    dap_frame.source = Some(Source {
-                                        name: Some("stddef.dm".to_owned()),
-                                        sourceReference: Some(STDDEF_SOURCE_REFERENCE),
-                                        ..Default::default()
-                                    });
-                                    dap_frame.line = i64::from(proc.location.line);
-                                    //dap_frame.column = i64::from(proc.location.column);
-                                }
+                                )
+                            {
+                                dap_frame.source = Some(Source {
+                                    name: Some("stddef.dm".to_owned()),
+                                    sourceReference: Some(STDDEF_SOURCE_REFERENCE),
+                                    ..Default::default()
+                                });
+                                dap_frame.line = i64::from(proc.location.line);
+                                //dap_frame.column = i64::from(proc.location.column);
                             }
                         } else {
                             // Normal proc.
@@ -1067,20 +1066,20 @@ impl Debugger {
                     {
                         if proc.location.is_builtins() {
                             // `stddef.dm` proc.
-                            if let Some(stddef_dm_info) = self.stddef_dm_info.as_ref() {
-                                if let Some(proc) = get_proc(
+                            if let Some(stddef_dm_info) = self.stddef_dm_info.as_ref()
+                                && let Some(proc) = get_proc(
                                     &stddef_dm_info.objtree,
                                     &aux_proc.path,
                                     aux_proc.override_id as usize,
-                                ) {
-                                    dap_frame.source = Some(Source {
-                                        name: Some("stddef.dm".to_owned()),
-                                        sourceReference: Some(STDDEF_SOURCE_REFERENCE),
-                                        ..Default::default()
-                                    });
-                                    dap_frame.line = i64::from(proc.location.line);
-                                    //dap_frame.column = i64::from(proc.location.column);
-                                }
+                                )
+                            {
+                                dap_frame.source = Some(Source {
+                                    name: Some("stddef.dm".to_owned()),
+                                    sourceReference: Some(STDDEF_SOURCE_REFERENCE),
+                                    ..Default::default()
+                                });
+                                dap_frame.line = i64::from(proc.location.line);
+                                //dap_frame.column = i64::from(proc.location.column);
                             }
                         } else {
                             // Normal proc.
@@ -1129,7 +1128,9 @@ impl Debugger {
                 let frame_no = frame_id / threads.len();
 
                 let Some(frame) = threads[&thread_id].call_stack.get(frame_no) else {
-                    return Err(Box::new(GenericError2(format!("Stack frame out of range: {frameId} (thread {thread_id}, depth {frame_no})"))));
+                    return Err(Box::new(GenericError2(format!(
+                        "Stack frame out of range: {frameId} (thread {thread_id}, depth {frame_no})"
+                    ))));
                 };
 
                 Ok(ScopesResponse {
@@ -1505,10 +1506,10 @@ impl Debugger {
 
     fn Source(&mut self, params: P<Source>) -> R<Source> {
         let mut source_reference = params.sourceReference;
-        if let Some(source) = params.source {
-            if let Some(reference) = source.sourceReference {
-                source_reference = reference;
-            }
+        if let Some(source) = params.source
+            && let Some(reference) = source.sourceReference
+        {
+            source_reference = reference;
         }
 
         if source_reference != STDDEF_SOURCE_REFERENCE {
@@ -1781,9 +1782,8 @@ struct StddefDmInfo {
 impl StddefDmInfo {
     fn new(text: String) -> StddefDmInfo {
         let context = dm::Context::default();
-        let pp = dm::preprocessor::Preprocessor::from_buffer(&context, "stddef.dm".into(), &text);
-        let parser =
-            dm::parser::Parser::new(&context, dm::indents::IndentProcessor::new(&context, pp));
+        let pp = dm::Preprocessor::from_buffer(&context, "stddef.dm".into(), &text);
+        let parser = dm::Parser::new(&context, pp);
         let objtree = parser.parse_object_tree_without_builtins();
         StddefDmInfo { text, objtree }
     }

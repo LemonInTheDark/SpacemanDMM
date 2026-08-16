@@ -1,14 +1,4 @@
-extern crate dreamchecker as dc;
-
-use dc::test_helpers::*;
-
-pub const PRIVATE_PROC_ERRORS: &[(u32, u16, &str)] = &[
-    (5, 21, "proc overrides private parent, prohibited by /mob/proc/private"),
-    (11, 5, "/mob/subtype/proc/test2 attempting to call private proc /mob/proc/private2, types do not match"),
-    (12, 8, "/mob/subtype/proc/test2 attempting to call private proc /mob/proc/private2, types do not match"),
-    (15, 6, "/obj/proc/test attempting to call private proc /mob/proc/private2, types do not match"),
-    (17, 6, "/obj/proc/test attempting to call private proc /mob/proc/private, types do not match"),
-];
+use dreamchecker::test_helpers::*;
 
 #[test]
 fn private_proc() {
@@ -32,18 +22,15 @@ fn private_proc() {
     S.private()
 "##
     .trim();
-    check_errors_match(code, PRIVATE_PROC_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (5, 21, "proc overrides private parent, prohibited by /mob/proc/private"),
+        (11, 5, "/mob/subtype/proc/test2 attempting to call private proc /mob/proc/private2, types do not match"),
+        (12, 8, "/mob/subtype/proc/test2 attempting to call private proc /mob/proc/private2, types do not match"),
+        (15, 6, "/obj/proc/test attempting to call private proc /mob/proc/private2, types do not match"),
+        (17, 6, "/obj/proc/test attempting to call private proc /mob/proc/private, types do not match"),
+    ]);
 }
-
-pub const PRIVATE_VAR_ERRORS: &[(u32, u16, &str)] = &[
-    (5, 9, "/mob/subtype overrides private var \"foo\""),
-    (12, 6, "field \"bar\" on /mob is declared as private"),
-    (
-        14,
-        6,
-        "field \"foo\" on /mob/subtype is declared as private",
-    ),
-];
 
 #[test]
 fn private_var() {
@@ -64,21 +51,13 @@ fn private_var() {
     S.foo = TRUE
 "##
     .trim();
-    check_errors_match(code, PRIVATE_VAR_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (5, 9, "/mob/subtype overrides private var \"foo\""),
+        (12, 6, "field \"bar\" on /mob is declared as private"),
+        (14, 6, "field \"foo\" on /mob/subtype is declared as private"),
+    ]);
 }
-
-pub const PROTECTED_PROC_ERRORS: &[(u32, u16, &str)] = &[
-    (
-        15,
-        6,
-        "/obj/proc/test attempting to call protected proc /mob/proc/protected2",
-    ),
-    (
-        17,
-        6,
-        "/obj/proc/test attempting to call protected proc /mob/proc/protected",
-    ),
-];
 
 #[test]
 fn protected_proc() {
@@ -102,17 +81,12 @@ fn protected_proc() {
     S.protected()
 "##
     .trim();
-    check_errors_match(code, PROTECTED_PROC_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (15, 6, "/obj/proc/test attempting to call protected proc /mob/proc/protected2"),
+        (17, 6, "/obj/proc/test attempting to call protected proc /mob/proc/protected"),
+    ]);
 }
-
-pub const PROTECTED_VAR_ERRORS: &[(u32, u16, &str)] = &[
-    (12, 6, "field \"bar\" on /mob is declared as protected"),
-    (
-        14,
-        6,
-        "field \"foo\" on /mob/subtype is declared as protected",
-    ),
-];
 
 #[test]
 fn protected_var() {
@@ -133,5 +107,9 @@ fn protected_var() {
     S.foo = TRUE
 "##
     .trim();
-    check_errors_match(code, PROTECTED_VAR_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (12, 6, "field \"bar\" on /mob is declared as protected"),
+        (14, 6, "field \"foo\" on /mob/subtype is declared as protected"),
+    ]);
 }

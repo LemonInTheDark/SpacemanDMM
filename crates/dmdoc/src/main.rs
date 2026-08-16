@@ -37,14 +37,7 @@ const DM_REFERENCE_BASE: &str = "https://www.byond.com/docs/ref/#";
 // ----------------------------------------------------------------------------
 // Driver
 
-fn main() {
-    if let Err(e) = main2() {
-        eprintln!("{e}");
-        std::process::exit(1);
-    }
-}
-
-fn main2() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     // command-line args
     let mut environment = None;
     let mut output_path = "dmdoc".to_owned();
@@ -87,10 +80,9 @@ fn main2() -> Result<(), Box<dyn std::error::Error>> {
     let mut context = dm::Context::default();
     context.set_print_severity(Some(dm::Severity::Error));
     context.autodetect_config(&environment);
-    let mut pp = dm::preprocessor::Preprocessor::new(&context, environment.clone())?;
+    let mut pp = dm::Preprocessor::new(&context, environment.clone())?;
     let (objtree, module_docs) = {
-        let indents = dm::indents::IndentProcessor::new(&context, &mut pp);
-        let mut parser = dm::parser::Parser::new(&context, indents);
+        let mut parser = dm::Parser::new(&context, &mut pp);
         parser.enable_procs(); // for `set SpacemanDMM_return_type`
         parser.parse_with_module_docs()
     };
@@ -179,7 +171,7 @@ fn main2() -> Result<(), Box<dyn std::error::Error>> {
     let mut macro_to_module_map = BTreeMap::new();
     for (range, (name, define)) in define_history.iter() {
         macro_exists.insert(name.as_str());
-        if !define.docs().is_empty() {
+        if !define.docs.is_empty() {
             let mod_path = module_path(&context.file_path(range.start.file));
             modules_which_exist.insert(mod_path.clone());
             macro_to_module_map.insert(name.as_str(), mod_path);
@@ -193,28 +185,8 @@ fn main2() -> Result<(), Box<dyn std::error::Error>> {
 
     // if macros have docs, that counts as a module too
     for (range, (name, define)) in define_history.iter() {
-        let (docs, has_params, params, is_variadic);
-        match define {
-            dm::preprocessor::Define::Constant { docs: dc, .. } => {
-                docs = dc;
-                has_params = false;
-                params = &[][..];
-                is_variadic = false;
-            },
-            dm::preprocessor::Define::Function {
-                docs: dc,
-                params: macro_params,
-                variadic,
-                ..
-            } => {
-                docs = dc;
-                has_params = true;
-                params = macro_params;
-                is_variadic = *variadic;
-            },
-        }
         macros_all += 1;
-        if docs.is_empty() {
+        if define.docs.is_empty() {
             continue;
         }
         error_entity_put(format!("#define {name}"));
@@ -230,7 +202,7 @@ fn main2() -> Result<(), Box<dyn std::error::Error>> {
                 &types_with_docs,
             )
         };
-        let docs = DocBlock::parse(&docs.text(), Some(broken_link_callback));
+        let docs = DocBlock::parse(&define.docs.text(), Some(broken_link_callback));
         let module = module_entry(&mut modules1, &context.file_path(range.start.file));
         module.items_wip.push((
             range.start.line,
@@ -243,9 +215,9 @@ fn main2() -> Result<(), Box<dyn std::error::Error>> {
             name,
             Define {
                 docs,
-                has_params,
-                params,
-                is_variadic,
+                has_params: !define.params.is_empty(),
+                params: &define.params[..],
+                is_variadic: define.variadic,
                 line: range.start.line,
             },
         );
@@ -261,18 +233,18 @@ fn main2() -> Result<(), Box<dyn std::error::Error>> {
             let entry = entry?;
             let path = entry.path();
 
-            if let Some(buf) = read_as_markdown(path)? {
-                if Some(path) != index_path.as_ref().map(Path::new) {
-                    let module = module_entry(&mut modules1, path);
-                    module.items_wip.push((
-                        0,
-                        ModuleItem::DocComment(DocComment {
-                            kind: CommentKind::Block,
-                            target: DocTarget::EnclosingItem,
-                            text: buf,
-                        }),
-                    ));
-                }
+            if let Some(buf) = read_as_markdown(path)?
+                && Some(path) != index_path.as_ref().map(Path::new)
+            {
+                let module = module_entry(&mut modules1, path);
+                module.items_wip.push((
+                    0,
+                    ModuleItem::DocComment(DocComment {
+                        kind: CommentKind::Block,
+                        target: DocTarget::EnclosingItem,
+                        text: buf,
+                    }),
+                ));
             }
         }
     }
@@ -347,10 +319,10 @@ fn main2() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let parent_type = ty.parent_type();
-        if parent_type != ty.parent_path() {
-            if let Some(parent) = parent_type {
-                parsed_type.parent_type = Some(&parent.get().path);
-            }
+        if parent_type != ty.parent_path()
+            && let Some(parent) = parent_type
+        {
+            parsed_type.parent_type = Some(&parent.get().path);
         }
 
         for (name, var) in ty.get().vars.iter() {
@@ -359,11 +331,11 @@ fn main2() -> Result<(), Box<dyn std::error::Error>> {
                 let mut parent = None;
                 let mut next = ty.parent_type_without_root();
                 while let Some(current) = next {
-                    if let Some(entry) = current.vars.get(name) {
-                        if !entry.value.docs.is_empty() {
-                            parent = Some(current.path[1..].to_owned());
-                            break;
-                        }
+                    if let Some(entry) = current.vars.get(name)
+                        && !entry.value.docs.is_empty()
+                    {
+                        parent = Some(current.path[1..].to_owned());
+                        break;
                     }
                     next = current.parent_type_without_root();
                 }
@@ -404,7 +376,7 @@ fn main2() -> Result<(), Box<dyn std::error::Error>> {
                     is_final: decl.var_type.flags.is_final(),
                     //is_private: decl.var_type.flags.is_private(),
                     //is_protected: decl.var_type.flags.is_protected(),
-                    path: &decl.var_type.type_path,
+                    path: decl.var_type.type_path.as_slice(),
                     input_type: decl.var_type.input_type,
                 });
                 parsed_type.vars.insert(
@@ -432,11 +404,11 @@ fn main2() -> Result<(), Box<dyn std::error::Error>> {
                 let mut parent = None;
                 let mut next = ty.parent_type_without_root();
                 while let Some(current) = next {
-                    if let Some(entry) = current.procs.get(name) {
-                        if !entry.main_value().docs.is_empty() {
-                            parent = Some(current.path[1..].to_owned());
-                            break;
-                        }
+                    if let Some(entry) = current.procs.get(name)
+                        && !entry.main_value().docs.is_empty()
+                    {
+                        parent = Some(current.path[1..].to_owned());
+                        break;
                     }
                     next = current.parent_type_without_root();
                 }
@@ -493,7 +465,7 @@ fn main2() -> Result<(), Box<dyn std::error::Error>> {
                             .iter()
                             .map(|p| Param {
                                 name: p.name.clone(),
-                                type_path: format_type_path(&p.var_type.type_path),
+                                type_path: p.var_type.type_path.to_string(),
                                 input_type: p.input_type,
                             })
                             .collect(),
@@ -843,11 +815,11 @@ fn find_return_type(code: &dm::ast::Block) -> Option<Vec<Ident>> {
             value,
         } = &stmt.elem
         {
-            if name.as_str() == "SpacemanDMM_return_type" {
-                if let Some(dm::ast::Term::Prefab(fab)) = value.as_term() {
-                    let bits: Vec<_> = fab.path.iter().map(|(_, name)| name.to_owned()).collect();
-                    return Some(bits);
-                }
+            if name.as_str() == "SpacemanDMM_return_type"
+                && let Some(dm::ast::Term::Prefab(fab)) = value.as_term()
+            {
+                let bits: Vec<_> = fab.path.iter().map(|(_, name)| name.to_owned()).collect();
+                return Some(bits);
             }
         } else {
             break;
@@ -978,30 +950,30 @@ fn broken_link_fixer<'str>(
         // for example if it's overridden in the DM code but not re-documented.
         if let Some(ty) = objtree.find(ty_path) {
             if let Some(var_name) = var_name {
-                if let Some(var) = ty.get_value(var_name) {
-                    if var.location.is_builtins() {
-                        external_url = Some(match var.docs.builtin_docs {
-                            BuiltinDocs::None => {
-                                format!("{}{}/var/{}", DM_REFERENCE_BASE, ty.path, var_name)
-                            },
-                            BuiltinDocs::ReferenceHash(hash) => {
-                                format!("{DM_REFERENCE_BASE}{hash}")
-                            },
-                        })
-                    }
+                if let Some(var) = ty.get_value(var_name)
+                    && var.location.is_builtins()
+                {
+                    external_url = Some(match var.docs.builtin_docs {
+                        BuiltinDocs::None => {
+                            format!("{}{}/var/{}", DM_REFERENCE_BASE, ty.path, var_name)
+                        },
+                        BuiltinDocs::ReferenceHash(hash) => {
+                            format!("{DM_REFERENCE_BASE}{hash}")
+                        },
+                    })
                 }
             } else if let Some(proc_name) = proc_name {
-                if let Some(proc) = ty.get_proc(proc_name) {
-                    if proc.location.is_builtins() {
-                        external_url = Some(match proc.docs.builtin_docs {
-                            BuiltinDocs::None => {
-                                format!("{}{}/proc/{}", DM_REFERENCE_BASE, ty.path, proc_name)
-                            },
-                            BuiltinDocs::ReferenceHash(hash) => {
-                                format!("{DM_REFERENCE_BASE}{hash}")
-                            },
-                        })
-                    }
+                if let Some(proc) = ty.get_proc(proc_name)
+                    && proc.location.is_builtins()
+                {
+                    external_url = Some(match proc.docs.builtin_docs {
+                        BuiltinDocs::None => {
+                            format!("{}{}/proc/{}", DM_REFERENCE_BASE, ty.path, proc_name)
+                        },
+                        BuiltinDocs::ReferenceHash(hash) => {
+                            format!("{DM_REFERENCE_BASE}{hash}")
+                        },
+                    })
                 }
             } else if ty.location.is_builtins() {
                 external_url = Some(match ty.docs.builtin_docs {
@@ -1128,14 +1100,6 @@ fn is_visible(entry: &walkdir::DirEntry) -> bool {
         .to_str()
         .map(|s| !s.starts_with('.'))
         .unwrap_or(true)
-}
-
-fn format_type_path(vec: &[Ident]) -> String {
-    if vec.is_empty() {
-        String::new()
-    } else {
-        format!("/{}", vec.join("/"))
-    }
 }
 
 fn linkify_type<'a, I: Iterator<Item = &'a str>>(

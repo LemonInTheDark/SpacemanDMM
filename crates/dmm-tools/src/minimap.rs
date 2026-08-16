@@ -53,7 +53,13 @@ pub fn generate(ctx: Context, icon_cache: &IconCache) -> Result<Image, ()> {
     for (key, prefabs) in map.dictionary.iter() {
         atoms.insert(
             key,
-            get_atom_list(objtree, prefabs, render_passes, ctx.errors, ctx.print_errors),
+            get_atom_list(
+                objtree,
+                prefabs,
+                render_passes,
+                ctx.errors,
+                ctx.print_errors,
+            ),
         );
     }
 
@@ -361,10 +367,10 @@ impl<'a> GetVar<'a> for Atom<'a> {
     }
 
     fn get_var_inner(&self, key: &str, objtree: &'a ObjectTree) -> Option<&'a Constant> {
-        if let Some(prefab) = self.prefab {
-            if let Some(v) = prefab.get(key) {
-                return Some(v);
-            }
+        if let Some(prefab) = self.prefab
+            && let Some(v) = prefab.get(key)
+        {
+            return Some(v);
         }
         let mut current = Some(self.type_);
         while let Some(t) = current.take() {

@@ -41,30 +41,18 @@ impl UnaryOp {
     /// Prepare to display this unary operator around (to the left or right of)
     /// its operand.
     pub fn around<T: fmt::Display + ?Sized>(self, expr: &'_ T) -> impl fmt::Display + '_ {
-        /// A formatting wrapper created by `UnaryOp::around`.
-        struct Around<'a, T: 'a + ?Sized> {
-            op: UnaryOp,
-            expr: &'a T,
-        }
-
-        impl<'a, T: fmt::Display + ?Sized> fmt::Display for Around<'a, T> {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                use self::UnaryOp::*;
-                match self.op {
-                    Neg => write!(f, "-{}", self.expr),
-                    Not => write!(f, "!{}", self.expr),
-                    BitNot => write!(f, "~{}", self.expr),
-                    PreIncr => write!(f, "++{}", self.expr),
-                    PostIncr => write!(f, "{}++", self.expr),
-                    PreDecr => write!(f, "--{}", self.expr),
-                    PostDecr => write!(f, "{}--", self.expr),
-                    Reference => write!(f, "&{}", self.expr),
-                    Dereference => write!(f, "*{}", self.expr),
-                }
-            }
-        }
-
-        Around { op: self, expr }
+        use self::UnaryOp::*;
+        fmt::from_fn(move |f| match self {
+            Neg => write!(f, "-{}", expr),
+            Not => write!(f, "!{}", expr),
+            BitNot => write!(f, "~{}", expr),
+            PreIncr => write!(f, "++{}", expr),
+            PostIncr => write!(f, "{}++", expr),
+            PreDecr => write!(f, "--{}", expr),
+            PostDecr => write!(f, "{}--", expr),
+            Reference => write!(f, "&{}", expr),
+            Dereference => write!(f, "*{}", expr),
+        })
     }
 
     /// Get a human-readable name for this unary operator. May be ambiguous.
@@ -420,23 +408,15 @@ impl ProcFlags {
         self.contains(ProcFlags::FINAL)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &'static str> {
-        struct ProcFlagsIter(ProcFlags);
-
-        impl Iterator for ProcFlagsIter {
-            type Item = &'static str;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                if self.0.is_final() {
-                    self.0 &= !ProcFlags::FINAL;
-                    Some("final")
-                } else {
-                    None
-                }
+    pub fn iter(mut self) -> impl Iterator<Item = &'static str> {
+        std::iter::from_fn(move || {
+            if self.is_final() {
+                self &= !ProcFlags::FINAL;
+                Some("final")
+            } else {
+                None
             }
-        }
-
-        ProcFlagsIter(*self)
+        })
     }
 }
 
@@ -658,38 +638,30 @@ impl VarTypeFlags {
         !self.intersects(VarTypeFlags::CONST | VarTypeFlags::STATIC | VarTypeFlags::PROTECTED)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &'static str> {
-        struct VarTypeFlagsIter(VarTypeFlags);
-
-        impl Iterator for VarTypeFlagsIter {
-            type Item = &'static str;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                if self.0.is_static() {
-                    self.0 &= !VarTypeFlags::STATIC;
-                    Some("static")
-                } else if self.0.is_const() {
-                    self.0 &= !VarTypeFlags::CONST;
-                    Some("const")
-                } else if self.0.is_tmp() {
-                    self.0 &= !VarTypeFlags::TMP;
-                    Some("tmp")
-                } else if self.0.is_final() {
-                    self.0 &= !VarTypeFlags::FINAL;
-                    Some("final")
-                } else if self.0.is_private() {
-                    self.0 &= !VarTypeFlags::PRIVATE;
-                    Some("SpacemanDMM_private")
-                } else if self.0.is_protected() {
-                    self.0 &= !VarTypeFlags::PROTECTED;
-                    Some("SpacemanDMM_protected")
-                } else {
-                    None
-                }
+    pub fn iter(mut self) -> impl Iterator<Item = &'static str> {
+        std::iter::from_fn(move || {
+            if self.is_static() {
+                self &= !VarTypeFlags::STATIC;
+                Some("static")
+            } else if self.is_const() {
+                self &= !VarTypeFlags::CONST;
+                Some("const")
+            } else if self.is_tmp() {
+                self &= !VarTypeFlags::TMP;
+                Some("tmp")
+            } else if self.is_final() {
+                self &= !VarTypeFlags::FINAL;
+                Some("final")
+            } else if self.is_private() {
+                self &= !VarTypeFlags::PRIVATE;
+                Some("SpacemanDMM_private")
+            } else if self.is_protected() {
+                self &= !VarTypeFlags::PROTECTED;
+                Some("SpacemanDMM_protected")
+            } else {
+                None
             }
-        }
-
-        VarTypeFlagsIter(*self)
+        })
     }
 }
 
@@ -722,12 +694,22 @@ impl fmt::Display for VarTypeFlags {
 
 // Ident2 is an opaque type which promises a limited interface.
 // Its implementation can be modified as Cow/interning strategy changes.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Ident {
     inner: Cow<'static, str>,
 }
 
+impl Default for Ident {
+    fn default() -> Self {
+        Ident::EMPTY
+    }
+}
+
 impl Ident {
+    const EMPTY: Ident = Ident {
+        inner: Cow::const_str(""),
+    };
+
     pub fn from_nonstatic(str: &str) -> Self {
         if let Some(i) = intern_static(str) {
             Ident {
@@ -740,13 +722,28 @@ impl Ident {
         }
     }
 
+    pub fn from_nonstatic_cow(str: std::borrow::Cow<str>) -> Self {
+        if let Some(i) = intern_static(&str) {
+            Ident {
+                inner: Cow::borrowed(i),
+            }
+        } else {
+            Ident {
+                inner: Cow::owned(str.into_owned()),
+            }
+        }
+    }
+
+    #[inline]
     pub(crate) fn from_static(str: &'static str) -> Self {
         debug_assert!(
             intern_static(str).is_some(),
             "Missing from STATIC_IDENTS: {:?}",
             str
         );
-        Ident { inner: str.into() }
+        Ident {
+            inner: Cow::const_str(str),
+        }
     }
 
     pub fn as_str(&self) -> &str {
@@ -821,6 +818,22 @@ impl From<String> for Ident {
     }
 }
 
+impl From<std::borrow::Cow<'static, str>> for Ident {
+    fn from(value: std::borrow::Cow<'static, str>) -> Self {
+        match (intern_static(&value), value) {
+            (Some(i), _) => Ident {
+                inner: Cow::borrowed(i),
+            },
+            (None, std::borrow::Cow::Borrowed(b)) => Ident {
+                inner: Cow::borrowed(b),
+            },
+            (None, std::borrow::Cow::Owned(o)) => Ident {
+                inner: Cow::owned(o),
+            },
+        }
+    }
+}
+
 impl From<ProcDeclKind> for Ident {
     fn from(value: ProcDeclKind) -> Self {
         Ident::from_static(value.name())
@@ -875,21 +888,61 @@ impl<T> Spanned<T> {
     pub fn new(location: Location, elem: T) -> Spanned<T> {
         Spanned { location, elem }
     }
+
+    pub fn invalid(elem: T) -> Spanned<T> {
+        Spanned {
+            location: Location::INVALID,
+            elem,
+        }
+    }
 }
 
 /// An absolute tree path like `/ident/ident`.
-pub type TreePath = Box<[Ident]>;
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, GetSize)]
+pub struct AbsolutePath(Box<[Ident]>);
 
-pub fn treepath_from_str(str: &str) -> TreePath {
-    str.split('/')
-        .filter(|elem| !elem.is_empty())
-        .map(Ident::from_nonstatic)
-        .collect::<TreePath>()
+impl<'a> From<&'a str> for AbsolutePath {
+    fn from(value: &'a str) -> Self {
+        value
+            .split('/')
+            .filter(|elem| !elem.is_empty())
+            .map(Ident::from_nonstatic)
+            .collect::<AbsolutePath>()
+    }
 }
 
-pub struct FormatTreePath<'a, T>(pub &'a [T]);
+impl FromIterator<Ident> for AbsolutePath {
+    fn from_iter<T: IntoIterator<Item = Ident>>(iter: T) -> Self {
+        Self(FromIterator::from_iter(iter))
+    }
+}
 
-impl<'a, T: fmt::Display> fmt::Display for FormatTreePath<'a, T> {
+impl AbsolutePath {
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn as_slice(&self) -> &[Ident] {
+        &self.0
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Ident> {
+        self.0.iter()
+    }
+}
+
+impl fmt::Display for AbsolutePath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for each in self.0.iter() {
+            write!(f, "/{each}")?;
+        }
+        Ok(())
+    }
+}
+
+pub struct DisplayAbsolutePath<'a, T>(pub &'a [T]);
+
+impl<'a, T: fmt::Display> fmt::Display for DisplayAbsolutePath<'a, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for each in self.0.iter() {
             write!(f, "/{each}")?;
@@ -899,11 +952,51 @@ impl<'a, T: fmt::Display> fmt::Display for FormatTreePath<'a, T> {
 }
 
 /// A series of identifiers separated by path operators.
-pub type TypePath = Vec<(PathOp, Ident)>;
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, GetSize)]
+pub struct RelativePath(Vec<(PathOp, Ident)>);
 
-pub struct FormatTypePath<'a>(pub &'a [(PathOp, Ident)]);
+impl RelativePath {
+    pub fn single(op: PathOp, ident: Ident) -> RelativePath {
+        RelativePath(vec![(op, ident)])
+    }
 
-impl<'a> fmt::Display for FormatTypePath<'a> {
+    pub fn nameof(&self) -> Option<&str> {
+        Some(self.0.last()?.1.as_str())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn as_slice(&self) -> &[(PathOp, Ident)] {
+        &self.0
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &(PathOp, Ident)> {
+        self.0.iter()
+    }
+
+    pub fn push(&mut self, value: (PathOp, Ident)) {
+        self.0.push(value);
+    }
+}
+
+impl fmt::Display for RelativePath {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for each in self.0.iter() {
+            write!(f, "{}{}", each.0, each.1)?;
+        }
+        Ok(())
+    }
+}
+
+pub struct DisplayRelativePath<'a>(pub &'a [(PathOp, Ident)]);
+
+impl<'a> fmt::Display for DisplayRelativePath<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for each in self.0.iter() {
             write!(f, "{}{}", each.0, each.1)?;
@@ -918,12 +1011,22 @@ impl<'a> fmt::Display for FormatTypePath<'a> {
 /// A typepath optionally followed by a set of variables.
 #[derive(Clone, PartialEq, Debug, GetSize)]
 pub struct Prefab {
-    pub path: TypePath,
+    pub path: RelativePath,
     pub vars: Box<[(Ident, Expression)]>,
 }
 
-impl From<TypePath> for Prefab {
-    fn from(path: TypePath) -> Self {
+impl Prefab {
+    fn nameof(&self) -> Option<&str> {
+        if self.vars.is_empty() {
+            self.path.nameof()
+        } else {
+            None
+        }
+    }
+}
+
+impl From<RelativePath> for Prefab {
+    fn from(path: RelativePath) -> Self {
         Prefab {
             path,
             vars: Default::default(),
@@ -1108,7 +1211,7 @@ impl From<Term> for Expression {
         match term {
             Term::Expr(expr) => *expr,
             term => Expression::Base {
-                term: Box::new(Spanned::new(Default::default(), term)),
+                term: Box::new(Spanned::invalid(term)),
                 follow: Default::default(),
             },
         }
@@ -1129,7 +1232,7 @@ pub enum Term {
     /// An identifier.
     Ident(Ident),
     /// A string literal.
-    String(String),
+    String(Ident),
     /// A resource literal.
     Resource(String),
     /// An `as()` call, with an input type. Undocumented.
@@ -1138,10 +1241,10 @@ pub enum Term {
     __PROC__,
     /// A reference to the current proc/scope's type
     __TYPE__,
-    /// If rhs of an assignment op, this is a reference to the lhs var's type
-    /// If we're used as the second arg of an istype then it's the implied type of the first arg
-    /// Second case takes precedence over the first, but we don't properly implement because it would be impossible to
-    /// Tell. You can't DO anything to the __IMPLIED_TYPE__ so we don't really need to care about it
+    /// If rhs of an assignment op, this is a reference to the lhs var's type.
+    /// If we're used as the second arg of an istype then it's the implied type of the first arg.
+    /// Second case takes precedence over the first, but we don't properly implement because it would be impossible to tell.
+    /// You can't DO anything to the `__IMPLIED_TYPE__` so we don't really need to care about it.
     __IMPLIED_TYPE__,
 
     // Non-function calls with recursive contents -----------------------------
@@ -1150,7 +1253,7 @@ pub enum Term {
     /// A prefab literal (path + vars).
     Prefab(Box<Prefab>),
     /// An interpolated string, alternating string/expr/string/expr.
-    InterpString(Ident, Box<[(Option<Expression>, Box<str>)]>),
+    InterpString(Ident, Box<[(Option<Expression>, Ident)]>),
 
     // Function calls with recursive contents ---------------------------------
     /// An unscoped function call.
@@ -1249,23 +1352,23 @@ impl Term {
     }
 
     pub fn valid_for_range(&self, other: &Term, step: Option<&Expression>) -> Option<bool> {
-        if let Term::Int(i) = *self {
-            if let Term::Int(o) = *other {
-                // edge case
-                if i == 0 && o == 0 {
-                    return Some(false);
-                }
-                if let Some(stepexp) = step {
-                    if let Some(stepterm) = stepexp.as_term() {
-                        if let Term::Int(_s) = stepterm {
-                            return Some(true);
-                        }
-                    } else {
+        if let Term::Int(i) = *self
+            && let Term::Int(o) = *other
+        {
+            // edge case
+            if i == 0 && o == 0 {
+                return Some(false);
+            }
+            if let Some(stepexp) = step {
+                if let Some(stepterm) = stepexp.as_term() {
+                    if let Term::Int(_s) = stepterm {
                         return Some(true);
                     }
+                } else {
+                    return Some(true);
                 }
-                return Some(i <= o);
             }
+            return Some(i <= o);
         }
         None
     }
@@ -1274,7 +1377,7 @@ impl Term {
         match self {
             Term::Expr(e) => e.nameof(),
             Term::Ident(i) => Some(i),
-            Term::Prefab(fab) if fab.vars.is_empty() => Some(&fab.path.last()?.1),
+            Term::Prefab(fab) => fab.nameof(),
             Term::GlobalIdent(i) => Some(i),
             _ => None,
         }
@@ -1361,7 +1464,7 @@ impl From<Field> for Follow {
 }
 
 /// A parameter declaration in the header of a proc.
-#[derive(Debug, Clone, PartialEq, Default, GetSize)]
+#[derive(Debug, Clone, PartialEq, GetSize)]
 pub struct Parameter {
     pub var_type: VarType,
     pub name: Ident,
@@ -1385,7 +1488,7 @@ impl fmt::Display for Parameter {
 #[derive(Debug, Clone, PartialEq, Default, GetSize)]
 pub struct VarType {
     pub flags: VarTypeFlags,
-    pub type_path: TreePath,
+    pub type_path: AbsolutePath,
     pub input_type: InputType,
 }
 
@@ -1436,7 +1539,7 @@ impl VarTypeBuilder {
     pub fn build(self) -> VarType {
         VarType {
             flags: self.flags,
-            type_path: self.type_path.into_boxed_slice(),
+            type_path: AbsolutePath::from_iter(self.type_path),
             input_type: self.input_type.unwrap_or_default(),
         }
     }
@@ -1484,7 +1587,10 @@ impl VarSuffix {
             None
         } else {
             Some(Expression::from(Term::NewPrefab {
-                prefab: Box::new(Prefab::from(vec![(PathOp::Slash, ident!("list"))])),
+                prefab: Box::new(Prefab::from(RelativePath::single(
+                    PathOp::Slash,
+                    ident!("list"),
+                ))),
                 args: Some(args.into_boxed_slice()),
             }))
         }
@@ -1504,7 +1610,7 @@ pub enum Statement {
     Return(Option<Expression>),
     Throw(Expression),
     While {
-        condition: Expression,
+        condition: Box<Spanned<Expression>>,
         block: Block,
     },
     DoWhile {
@@ -1545,7 +1651,7 @@ pub enum Statement {
     },
     TryCatch {
         try_block: Block,
-        catch_params: Box<[TreePath]>,
+        catch_params: Box<[AbsolutePath]>,
         catch_block: Block,
     },
     Continue(Option<Ident>),
@@ -1652,7 +1758,7 @@ pub static VALID_FILTER_FLAGS: phf::Map<&'static str, (&str, bool, bool, &[&str]
 
 // ----------------------------------------------------------------------------
 // Guard against sizeof regression.
-const _: [(); 0 - !(std::mem::size_of::<Ident>() <= 16) as usize] = [];
-const _: [(); 0 - !(std::mem::size_of::<Statement>() <= 56) as usize] = [];
-const _: [(); 0 - !(std::mem::size_of::<Expression>() <= 32) as usize] = [];
-const _: [(); 0 - !(std::mem::size_of::<Term>() <= 40) as usize] = [];
+const _: () = assert!(std::mem::size_of::<Ident>() <= 16);
+const _: () = assert!(std::mem::size_of::<Statement>() <= 56);
+const _: () = assert!(std::mem::size_of::<Expression>() <= 32);
+const _: () = assert!(std::mem::size_of::<Term>() <= 40);

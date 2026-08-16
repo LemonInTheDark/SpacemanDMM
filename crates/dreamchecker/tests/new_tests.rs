@@ -1,12 +1,4 @@
-extern crate dreamchecker as dc;
-
-use dc::test_helpers::*;
-
-pub const NEW_DOT_ERRORS: &[(u32, u16, &str)] = &[(
-    12,
-    14,
-    "got '(', expected one of: operator, field access, ';'",
-)];
+use dreamchecker::test_helpers::*;
 
 #[test]
 fn new_dot() {
@@ -27,14 +19,11 @@ fn new_dot() {
     new 2 + 2() // TODO: see parser.rs
 "#
     .trim();
-    check_errors_match(code, NEW_DOT_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (12, 14, "got '(', expected one of: operator, field access, ';'"),
+    ]);
 }
-
-pub const NEW_PRECEDENCE_ERRORS: &[(u32, u16, &str)] = &[(
-    4,
-    13,
-    "got '(', expected one of: operator, field access, ';'",
-)];
 
 #[test]
 fn new_precedence() {
@@ -45,5 +34,8 @@ fn new_precedence() {
     new L[1]()
 "##
     .trim();
-    check_errors_match(code, NEW_PRECEDENCE_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (4, 13, "got '(', expected one of: operator, field access, ';'"),
+    ]);
 }

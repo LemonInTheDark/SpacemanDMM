@@ -411,19 +411,21 @@ impl RenderPass for Overlays {
                 });
             }
 
-            if atom.get_var("opened", objtree).to_bool() {
-                if let Constant::String(lid_icon_state) = atom.get_var("lid_icon_state", objtree) {
-                    let lid_icon = atom.get_var_notnull("lid_icon", objtree).and_then(|lid_icon| lid_icon.as_path_str());
-                    let off_x = atom.get_var("lid_w", objtree).to_int().unwrap_or(0);
-                    let off_y = atom.get_var("lid_z", objtree).to_int().unwrap_or(0);
-                    overlays.push(Sprite {
-                        icon: lid_icon.unwrap_or(atom.sprite.icon),
-                        icon_state: lid_icon_state,
-                        ofs_x: atom.sprite.ofs_x + off_x,
-                        ofs_y: atom.sprite.ofs_y + off_y,
-                        ..atom.sprite
-                    });
-                }
+            if atom.get_var("opened", objtree).to_bool()
+                && let Constant::String(lid_icon_state) = atom.get_var("lid_icon_state", objtree)
+            {
+                let lid_icon = atom
+                    .get_var_notnull("lid_icon", objtree)
+                    .and_then(|lid_icon| lid_icon.as_path_str());
+                let off_x = atom.get_var("lid_w", objtree).to_int().unwrap_or(0);
+                let off_y = atom.get_var("lid_z", objtree).to_int().unwrap_or(0);
+                overlays.push(Sprite {
+                    icon: lid_icon.unwrap_or(atom.sprite.icon),
+                    icon_state: lid_icon_state,
+                    ofs_x: atom.sprite.ofs_x + off_x,
+                    ofs_y: atom.sprite.ofs_y + off_y,
+                    ..atom.sprite
+                });
             }
         } else if atom.istype("/obj/structure/closet/") {
             if atom.get_var("enable_door_overlay", objtree).to_bool() {
@@ -442,17 +444,16 @@ impl RenderPass for Overlays {
                         );
                     }
                 } else {
-                    if atom.get_var("has_closed_overlay", objtree).to_bool() {
-                        if let Constant::String(door) = atom
+                    if atom.get_var("has_closed_overlay", objtree).to_bool()
+                        && let Constant::String(door) = atom
                             .get_var_notnull("icon_door", objtree)
                             .unwrap_or_else(|| atom.get_var("icon_state", objtree))
-                        {
-                            add_to(
-                                overlays,
-                                atom,
-                                bumpalo::format!(in bump, "{}_door", door).into_bump_str(),
-                            );
-                        }
+                    {
+                        add_to(
+                            overlays,
+                            atom,
+                            bumpalo::format!(in bump, "{}_door", door).into_bump_str(),
+                        );
                     }
                     if atom.get_var("welded", objtree).to_bool() {
                         add_to(overlays, atom, "welded");
@@ -639,15 +640,15 @@ impl RenderPass for FancyLayers {
         _bump: &'a bumpalo::Bump,
     ) {
         // dual layering of vents 2: add abovefloor overlay
-        if atom.istype("/obj/machinery/atmospherics/components/unary/") {
-            if let Some(aboveground) = unary_aboveground(atom, objtree) {
-                overlays.push(Sprite {
-                    icon_state: aboveground,
-                    // use original layer, not modified layer above
-                    layer: crate::minimap::layer_of(objtree, atom),
-                    ..atom.sprite
-                });
-            }
+        if atom.istype("/obj/machinery/atmospherics/components/unary/")
+            && let Some(aboveground) = unary_aboveground(atom, objtree)
+        {
+            overlays.push(Sprite {
+                icon_state: aboveground,
+                // use original layer, not modified layer above
+                layer: crate::minimap::layer_of(objtree, atom),
+                ..atom.sprite
+            });
         }
     }
 }

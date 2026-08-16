@@ -1,11 +1,4 @@
-extern crate dreamchecker as dc;
-
-use dc::test_helpers::*;
-
-pub const FIELD_ACCESS_ERRORS: &[(u32, u16, &str)] = &[
-    (3, 9, "field access requires static type: \"name\""),
-    (4, 10, "field access requires static type: \"name\""),
-];
+use dreamchecker::test_helpers::*;
 
 #[test]
 fn field_access() {
@@ -18,13 +11,12 @@ fn field_access() {
     particle_holder.particles.height
 "##
     .trim();
-    check_errors_match(code, FIELD_ACCESS_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (3, 9, "field access requires static type: \"name\""),
+        (4, 10, "field access requires static type: \"name\""),
+    ]);
 }
-
-pub const PROC_CALL_ERRORS: &[(u32, u16, &str)] = &[
-    (3, 9, "proc call requires static type: \"foo\""),
-    (4, 10, "proc call requires static type: \"foo\""),
-];
 
 #[test]
 fn proc_call() {
@@ -36,10 +28,12 @@ fn proc_call() {
 /mob/proc/foo()
 "##
     .trim();
-    check_errors_match(code, PROC_CALL_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (3, 9, "proc call requires static type: \"foo\""),
+        (4, 10, "proc call requires static type: \"foo\""),
+    ]);
 }
-
-pub const RETURN_TYPE_ERRORS: &[(u32, u16, &str)] = &[(3, 16, "undefined proc: \"foo\" on /atom")];
 
 #[test]
 fn return_type() {
@@ -50,5 +44,8 @@ fn return_type() {
 /mob/proc/foo()
 "##
     .trim();
-    check_errors_match(code, RETURN_TYPE_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (3, 16, "undefined proc: \"foo\" on /atom"),
+    ]);
 }

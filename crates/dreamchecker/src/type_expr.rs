@@ -93,7 +93,7 @@ impl<'o> TypeExpr<'o> {
             } => {
                 if let Some(analysis) = ec.get(name, *p_idx) {
                     if let Some(Constant::Prefab(ref pop)) = analysis.value {
-                        crate::static_type(ec.objtree, location, &pop.path)
+                        crate::static_type(ec.objtree, location, pop.path.as_slice())
                     } else {
                         Ok(StaticType::None)
                     }

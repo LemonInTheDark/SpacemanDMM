@@ -9,7 +9,7 @@ use std::path::Path;
 use lodepng::{self, ColorType, Decoder, RGBA};
 use ndarray::Array2;
 
-pub use dm::dmi::*;
+pub use dmi::*;
 use std::ops::{Index, IndexMut};
 
 /// Absolute x and y.

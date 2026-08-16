@@ -20,7 +20,7 @@ impl RenderPass for Spawners {
                     let reference = match *key {
                         Constant::String(ref s) => s,
                         Constant::Prefab(ref fab) => {
-                            type_key = dm::ast::FormatTreePath(&fab.path).to_string();
+                            type_key = fab.path.to_string();
                             type_key.as_str()
                         },
                         _ => continue,

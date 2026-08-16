@@ -1,9 +1,4 @@
-extern crate dreamchecker as dc;
-
-use dc::test_helpers::*;
-
-pub const CALL_EXT_MISSING_CALL_ERRORS: &[(u32, u16, &str)] =
-    &[(2, 19, "got ';', expected one of: '('")];
+use dreamchecker::test_helpers::*;
 
 #[test]
 fn call_ext_missing_call() {
@@ -12,5 +7,8 @@ fn call_ext_missing_call() {
     call_ext(1, 2)
 "##
     .trim();
-    check_errors_match(code, CALL_EXT_MISSING_CALL_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (2, 19, "got ';', expected one of: '('"),
+    ]);
 }

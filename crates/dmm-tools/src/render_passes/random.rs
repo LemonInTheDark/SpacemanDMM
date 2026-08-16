@@ -74,12 +74,12 @@ impl RenderPass for Random {
                         loot.retain(|(k, _)| k != lootspawn);
                     }
 
-                    if let Constant::Prefab(pop) = lootspawn {
-                        if let Some(ty) = objtree.type_by_path(pop.path.iter()) {
-                            // Usually pixel offsets would be set here, but
-                            // that's not currently supported.
-                            output.push(Atom::from(ty));
-                        }
+                    if let Constant::Prefab(pop) = lootspawn
+                        && let Some(ty) = objtree.type_by_path(pop.path.iter())
+                    {
+                        // Usually pixel offsets would be set here, but
+                        // that's not currently supported.
+                        output.push(Atom::from(ty));
                     }
                     loot_spawned += 1;
                 }
@@ -154,17 +154,16 @@ impl RenderPass for Random {
             if let Some(root) = objtree.find("/datum/barsign") {
                 let mut signs = Vec::new();
                 for child in root.children() {
-                    if let Some(v) = child.vars.get("hidden") {
-                        if !v.value.constant.as_ref().is_some_and(|c| c.to_bool()) {
-                            continue;
-                        }
+                    if let Some(v) = child.vars.get("hidden")
+                        && !v.value.constant.as_ref().is_some_and(|c| c.to_bool())
+                    {
+                        continue;
                     }
-                    if let Some(icon) = child.get().vars.get("icon") {
-                        if let Some(c) = icon.value.constant.as_ref() {
-                            if let Some(text) = c.as_str() {
-                                signs.push(text);
-                            }
-                        }
+                    if let Some(icon) = child.get().vars.get("icon")
+                        && let Some(c) = icon.value.constant.as_ref()
+                        && let Some(text) = c.as_str()
+                    {
+                        signs.push(text);
                     }
                 }
                 if let Some(c) = signs.choose(&mut rng) {

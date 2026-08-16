@@ -51,7 +51,7 @@ impl ReferencesTable {
                     let mut walk = WalkProc::from_ty(&mut tab, objtree, ty);
                     let type_hint = match ty.get_var_declaration(name) {
                         Some(decl) => walk
-                            .static_type(decl.location, &decl.var_type.type_path)
+                            .static_type(decl.location, decl.var_type.type_path.as_slice())
                             .basic_type(),
                         None => None,
                     };
@@ -224,7 +224,7 @@ impl<'o> WalkProc<'o> {
 
     pub fn run(&mut self, proc: ProcRef<'o>, block: &'o [Spanned<Statement>]) {
         for param in proc.get().parameters.iter() {
-            let ty = self.static_type(param.location, &param.var_type.type_path);
+            let ty = self.static_type(param.location, param.var_type.type_path.as_slice());
             self.use_type(param.location, &ty);
             if let Some(expr) = &param.default {
                 self.visit_expression(param.location, expr, None);
@@ -262,7 +262,7 @@ impl<'o> WalkProc<'o> {
                 self.visit_expression(location, expr, None);
             },
             Statement::While { condition, block } => {
-                self.visit_expression(location, condition, None);
+                self.visit_expression(location, &condition.elem, None);
                 self.visit_block(block);
             },
             Statement::DoWhile { block, condition } => {
@@ -376,7 +376,7 @@ impl<'o> WalkProc<'o> {
             } => {
                 self.visit_block(try_block);
                 for caught in catch_params.iter() {
-                    let (var_name, mut type_path) = match caught.split_last() {
+                    let (var_name, mut type_path) = match caught.as_slice().split_last() {
                         Some(x) => x,
                         None => continue,
                     };
@@ -416,7 +416,7 @@ impl<'o> WalkProc<'o> {
                 // There is currently no way to change that.
                 let var_type_value = VarType {
                     flags: VarTypeFlags::from_bits_truncate(0),
-                    type_path: Box::new([]),
+                    type_path: AbsolutePath::default(),
                     input_type: InputType::from_bits_truncate(0),
                 };
                 self.visit_var(location, &var_type_value, value, None);
@@ -436,7 +436,7 @@ impl<'o> WalkProc<'o> {
         name: &Ident,
         value: Option<&'o Expression>,
     ) {
-        let ty = self.static_type(location, &var_type.type_path);
+        let ty = self.static_type(location, var_type.type_path.as_slice());
         self.use_type(location, &ty);
         if let Some(expr) = value {
             self.visit_expression(location, expr, ty.basic_type());
@@ -515,7 +515,7 @@ impl<'o> WalkProc<'o> {
         }
         if let Some(decl) = self.ty.get_var_declaration(unscoped_name) {
             self.tab.use_symbol(decl.id, location);
-            self.static_type(location, &decl.var_type.type_path)
+            self.static_type(location, decl.var_type.type_path.as_slice())
         } else {
             StaticType::None
         }
@@ -660,7 +660,7 @@ impl<'o> WalkProc<'o> {
             Term::GlobalIdent(name) => {
                 if let Some(decl) = self.objtree.root().get_var_declaration(name) {
                     self.tab.use_symbol(decl.id, location);
-                    self.static_type(location, &decl.var_type.type_path)
+                    self.static_type(location, decl.var_type.type_path.as_slice())
                 } else {
                     StaticType::None
                 }
@@ -715,7 +715,7 @@ impl<'o> WalkProc<'o> {
     }
 
     fn visit_prefab(&mut self, location: Location, prefab: &'o Prefab) -> Option<TypeRef<'o>> {
-        if let Some(nav) = self.ty.navigate_path(&prefab.path) {
+        if let Some(nav) = self.ty.navigate_path(prefab.path.as_slice()) {
             // Use the proc if there was one of those
             if let NavigatePathResult::ProcPath(proc, _) = nav {
                 if let Some(decl) = nav.ty().get_proc_declaration(proc.name()) {
@@ -730,7 +730,7 @@ impl<'o> WalkProc<'o> {
                     if let Some(decl) = nav.ty().get_var_declaration(key) {
                         self.tab.use_symbol(decl.id, location);
                         type_hint = self
-                            .static_type(location, &decl.var_type.type_path)
+                            .static_type(location, decl.var_type.type_path.as_slice())
                             .basic_type();
                     }
                     self.visit_expression(location, expr, type_hint);
@@ -751,7 +751,7 @@ impl<'o> WalkProc<'o> {
         if let Some(ty) = lhs.basic_type() {
             if let Some(decl) = ty.get_var_declaration(name) {
                 self.tab.use_symbol(decl.id, location);
-                self.static_type(location, &decl.var_type.type_path)
+                self.static_type(location, decl.var_type.type_path.as_slice())
             } else {
                 StaticType::None
             }
@@ -793,10 +793,10 @@ impl<'o> WalkProc<'o> {
                 }
             },
             Follow::ProcReference(name) => {
-                if let Some(ty) = lhs.basic_type() {
-                    if let Some(decl) = ty.get_proc_declaration(name) {
-                        self.tab.use_symbol(decl.id, location);
-                    }
+                if let Some(ty) = lhs.basic_type()
+                    && let Some(decl) = ty.get_proc_declaration(name)
+                {
+                    self.tab.use_symbol(decl.id, location);
                 }
                 StaticType::None
             },
@@ -843,16 +843,14 @@ impl<'o> WalkProc<'o> {
                 lhs,
                 rhs,
             } = arg
+                && let Some(term) = lhs.as_term()
+                && let Some(_name) = term.as_kwarg_key()
             {
-                if let Some(term) = lhs.as_term() {
-                    if let Some(_name) = term.as_kwarg_key() {
-                        // Don't visit_expression the kwarg key.
-                        argument_value = rhs;
+                // Don't visit_expression the kwarg key.
+                argument_value = rhs;
 
-                        // TODO: register a usage of the kwarg symbol here.
-                        // Recurse to children too?
-                    }
-                }
+                // TODO: register a usage of the kwarg symbol here.
+                // Recurse to children too?
             }
 
             self.visit_expression(location, argument_value, None);
@@ -869,13 +867,11 @@ impl<'o> WalkProc<'o> {
                 lhs,
                 rhs,
             } = arg
+                && let Some(term) = lhs.as_term()
+                && let Some(_name) = term.as_kwarg_key()
             {
-                if let Some(term) = lhs.as_term() {
-                    if let Some(_name) = term.as_kwarg_key() {
-                        // Don't visit_expression the kwarg key.
-                        argument_value = rhs;
-                    }
-                }
+                // Don't visit_expression the kwarg key.
+                argument_value = rhs;
             }
 
             self.visit_expression(location, argument_value, None);

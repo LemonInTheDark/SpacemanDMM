@@ -135,10 +135,10 @@ impl Config {
     /// [`None`]: ../../std/option/enum.Option.html#variant.None
     pub fn set_configured_severity(&self, error: DMError) -> Option<DMError> {
         Some(match self.config_warninglevel(&error) {
-            Some(WarningLevel::Error) => error.set_severity(Severity::Error),
-            Some(WarningLevel::Warning) => error.set_severity(Severity::Warning),
-            Some(WarningLevel::Info) => error.set_severity(Severity::Info),
-            Some(WarningLevel::Hint) => error.set_severity(Severity::Hint),
+            Some(WarningLevel::Error) => error.with_severity(Severity::Error),
+            Some(WarningLevel::Warning) => error.with_severity(Severity::Warning),
+            Some(WarningLevel::Info) => error.with_severity(Severity::Info),
+            Some(WarningLevel::Hint) => error.with_severity(Severity::Hint),
             Some(WarningLevel::Disabled) => return None,
             Some(WarningLevel::Unset) | None => error,
         })

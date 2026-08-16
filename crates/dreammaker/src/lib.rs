@@ -3,7 +3,6 @@
 
 extern crate indexmap;
 extern crate interval_tree;
-extern crate lodepng;
 #[macro_use]
 extern crate bitflags;
 extern crate ordered_float;
@@ -15,13 +14,11 @@ extern crate toml;
 use std::borrow::Cow;
 use std::path::Path;
 
-mod error;
-pub use error::*;
-use get_size::GetSize;
-
 use foldhash::fast::RandomState;
+use get_size::GetSize;
 use indexmap::IndexMap;
 
+mod error;
 #[macro_use]
 mod intern;
 pub mod annotation;
@@ -29,28 +26,28 @@ pub mod ast;
 mod builtins;
 pub mod config;
 pub mod constants;
-pub mod dmi;
 pub mod docs;
-pub mod indents;
+mod indents;
 pub mod lexer;
 pub mod objtree;
-pub mod parser;
+mod parser;
 pub mod preprocessor;
+
+pub use error::*;
+pub use lexer::Lexer;
+pub use parser::Parser;
+pub use preprocessor::Preprocessor;
 
 impl Context {
     /// Run the parsing suite on a given `.dme` file, producing an object tree.
     ///
-    /// Will only return failure on an `io::Error`. Compilation failures will
+    /// Will only return failure on a [std::io::Error]. Compilation failures will
     /// return a best-effort parse. Call `print_all_errors` to pretty-print
     /// errors to standard error.
     pub fn parse_environment(&self, dme: &Path) -> Result<objtree::ObjectTree, DMError> {
-        Ok(parser::parse(
-            self,
-            indents::IndentProcessor::new(
-                self,
-                preprocessor::Preprocessor::new(self, dme.to_owned())?,
-            ),
-        ))
+        let pp = Preprocessor::new(self, dme.to_owned())?;
+        let p = Parser::new(self, pp);
+        Ok(p.parse_object_tree())
     }
 }
 
@@ -64,13 +61,14 @@ impl Context {
 pub fn pretty_print<W, I>(w: &mut W, input: I, show_ws: bool) -> std::fmt::Result
 where
     W: std::fmt::Write,
-    I: IntoIterator<Item = lexer::Token>,
+    I: IntoIterator,
+    I::Item: AsRef<lexer::Token>,
 {
     let mut indents = 0;
     let mut needs_newline = false;
-    let mut prev = None;
+    let mut prev: Option<I::Item> = None;
     for token in input {
-        match token {
+        match token.as_ref() {
             lexer::Token::Punct(lexer::Punctuation::LBrace) => {
                 indents += 1;
                 needs_newline = true;
@@ -103,13 +101,13 @@ where
                     }
                     write!(w, "{}", &SPACES[..spaces % SPACES.len()])?;
                     needs_newline = false;
-                } else if let Some(prev) = prev {
-                    if other.separate_from(&prev) {
-                        write!(w, " ")?;
-                    }
+                } else if let Some(prev) = prev.as_ref()
+                    && other.separate_from(prev.as_ref())
+                {
+                    write!(w, " ")?;
                 }
                 write!(w, "{other}")?;
-                prev = Some(other);
+                prev = Some(token);
             },
         }
     }
@@ -220,4 +218,12 @@ where
     total += u64::get_stack_size() * 4; // composition of RandomState
 
     total
+}
+
+#[doc(hidden)]
+pub fn _test_indent(
+    context: &Context,
+    input: impl IntoIterator<Item = lexer::LocatedToken>,
+) -> impl Iterator<Item = lexer::LocatedToken> {
+    indents::IndentProcessor::new(context, input)
 }

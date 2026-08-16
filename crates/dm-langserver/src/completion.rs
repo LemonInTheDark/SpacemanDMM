@@ -53,15 +53,14 @@ static PROC_KEYWORDS: &[&str] = &[
 
 fn item_var(ty: TypeRef, name: &str, var: &TypeVar) -> CompletionItem {
     let mut detail = format!("on {}", ty.pretty_path());
-    if let Some(ref decl) = var.declaration {
-        if decl.var_type.flags.is_const() {
-            if let Some(ref constant) = var.value.constant {
-                if ty.is_root() {
-                    detail = constant.to_string();
-                } else {
-                    detail = format!("{constant} - {detail}");
-                }
-            }
+    if let Some(ref decl) = var.declaration
+        && decl.var_type.flags.is_const()
+        && let Some(ref constant) = var.value.constant
+    {
+        if ty.is_root() {
+            detail = constant.to_string();
+        } else {
+            detail = format!("{constant} - {detail}");
         }
     }
 
@@ -225,16 +224,15 @@ impl Engine {
             }
         }
         let mut proc = None;
-        if decl.is_some() {
-            if let Some((_, proc_name)) = iter.next() {
-                // '/datum/proc/proc_name'
-                if let Some(proc_ref) = ty.get_proc(proc_name) {
-                    proc = Some((proc_name.as_str(), proc_ref.get()));
-                }
-            }
-            // else '/datum/proc', no results
+        if decl.is_some()
+            // `/datum/proc` has no results, but if there's a proc name...
+            && let Some((_, proc_name)) = iter.next()
+            // ... then it's `/datum/proc/proc_name`
+            && let Some(proc_ref) = ty.get_proc(proc_name)
+        {
+            proc = Some((proc_name.as_str(), proc_ref.get()));
         }
-        // '/datum'
+        // Just `/datum`
         Some(TypePathResult { ty, decl, proc })
     }
 
@@ -416,33 +414,32 @@ impl Engine {
 
         // local variables
         for (_, annotation) in iter.clone() {
-            if let Annotation::LocalVarScope(_var_type, name) = annotation {
-                if contains(name, query) {
-                    results.push(CompletionItem {
-                        label: name.as_str().to_owned(),
-                        kind: Some(CompletionItemKind::VARIABLE),
-                        detail: Some("(local)".to_owned()),
-                        ..Default::default()
-                    });
-                }
+            if let Annotation::LocalVarScope(_var_type, name) = annotation
+                && contains(name, query)
+            {
+                results.push(CompletionItem {
+                    label: name.as_str().to_owned(),
+                    kind: Some(CompletionItemKind::VARIABLE),
+                    detail: Some("(local)".to_owned()),
+                    ..Default::default()
+                });
             }
         }
 
         // proc parameters
         let ty = ty.unwrap_or_else(|| self.objtree.root());
-        if let Some((proc_name, idx)) = proc_name {
-            if let Some(proc) = ty.get().procs.get(proc_name) {
-                if let Some(value) = proc.value.get(idx) {
-                    for param in value.parameters.iter() {
-                        if contains(&param.name, query) {
-                            results.push(CompletionItem {
-                                label: param.name.as_str().to_owned(),
-                                kind: Some(CompletionItemKind::VARIABLE),
-                                detail: Some("(parameter)".to_owned()),
-                                ..Default::default()
-                            });
-                        }
-                    }
+        if let Some((proc_name, idx)) = proc_name
+            && let Some(proc) = ty.get().procs.get(proc_name)
+            && let Some(value) = proc.value.get(idx)
+        {
+            for param in value.parameters.iter() {
+                if contains(&param.name, query) {
+                    results.push(CompletionItem {
+                        label: param.name.as_str().to_owned(),
+                        kind: Some(CompletionItemKind::VARIABLE),
+                        detail: Some("(parameter)".to_owned()),
+                        ..Default::default()
+                    });
                 }
             }
         }
@@ -456,7 +453,7 @@ impl Engine {
                         label: name.as_str().to_owned(),
                         kind: Some(CompletionItemKind::CONSTANT),
                         detail: Some(define.display_with_name(name).to_string()),
-                        documentation: item_documentation(define.docs()),
+                        documentation: item_documentation(&define.docs),
                         ..Default::default()
                     });
                 }

@@ -25,6 +25,26 @@ type KeyType = u16;
 #[derive(Copy, Clone, Debug, Hash, Ord, Eq, PartialOrd, PartialEq, Default)]
 pub struct Key(KeyType);
 
+impl Key {
+    pub fn display(self, key_length: u8) -> impl fmt::Display {
+        fmt::from_fn(move |f| {
+            use fmt::Write;
+
+            if key_length < MAX_KEY_LENGTH && self.0 >= 52u16.pow(key_length as u32) {
+                panic!("Attempted to format an out-of-range key");
+            }
+
+            let mut current = 52usize.pow(key_length as u32 - 1);
+            for _ in 0..key_length {
+                f.write_char(BASE_52[(self.0 as usize / current) % 52] as char)?;
+                current /= 52;
+            }
+
+            Ok(())
+        })
+    }
+}
+
 /// An XY coordinate pair in the BYOND coordinate system.
 ///
 /// The lower-left corner is `{ x: 1, y: 1 }`.
@@ -282,7 +302,7 @@ impl Map {
 
     #[inline]
     pub fn format_key(&self, key: Key) -> impl std::fmt::Display {
-        FormatKey(self.key_length, key)
+        key.display(self.key_length)
     }
 }
 
@@ -367,28 +387,6 @@ impl Key {
 
     pub fn next(self) -> Key {
         Key(self.0 + 1)
-    }
-}
-
-#[derive(Copy, Clone)]
-struct FormatKey(u8, Key);
-
-impl fmt::Display for FormatKey {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use std::fmt::Write;
-        let FormatKey(key_length, Key(key)) = *self;
-
-        if key_length < MAX_KEY_LENGTH && key >= 52u16.pow(key_length as u32) {
-            panic!("Attempted to format an out-of-range key");
-        }
-
-        let mut current = 52usize.pow(key_length as u32 - 1);
-        for _ in 0..key_length {
-            f.write_char(BASE_52[(key as usize / current) % 52] as char)?;
-            current /= 52;
-        }
-
-        Ok(())
     }
 }
 

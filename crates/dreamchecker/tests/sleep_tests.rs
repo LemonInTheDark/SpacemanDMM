@@ -1,11 +1,4 @@
-
-extern crate dreamchecker as dc;
-
-use dc::test_helpers::{check_errors_match, parse_a_file_for_test};
-
-const SLEEP_ERRORS: &[(u32, u16, &str)] = &[
-    (16, 16, "/mob/proc/test3 sets SpacemanDMM_should_not_sleep but calls blocking proc /proc/sleepingproc"),
-];
+use dreamchecker::test_helpers::*;
 
 #[test]
 fn sleep() {
@@ -41,13 +34,13 @@ fn sleep() {
 /mob/proc/test6()
     set SpacemanDMM_should_not_sleep = TRUE
     spawnthensleepproc()
-"##.trim();
-    check_errors_match(code, SLEEP_ERRORS);
+"##
+    .trim();
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (16, 16, "/mob/proc/test3 sets SpacemanDMM_should_not_sleep but calls blocking proc /proc/sleepingproc"),
+    ]);
 }
-
-const SLEEP_ERRORS2: &[(u32, u16, &str)] = &[
-    (8, 21, "/mob/living/proc/bar calls /mob/living/proc/foo which has override child proc that sleeps /mob/living/carbon/proc/foo"),
-];
 
 #[test]
 fn sleep2() {
@@ -75,8 +68,12 @@ fn sleep2() {
     sleep(1)
 /mob/living/thing()
     . = ..()
-"##.trim();
-    check_errors_match(code, SLEEP_ERRORS2);
+"##
+    .trim();
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (8, 21, "/mob/living/proc/bar calls /mob/living/proc/foo which has override child proc that sleeps /mob/living/carbon/proc/foo"),
+    ]);
 }
 
 // This test is like sleep2, but checks /atom/movable -> /mob relationship
@@ -106,20 +103,13 @@ fn sleep3() {
     sleep(1)
 /atom/movable/thing()
     . = ..()
-"##.trim();
+"##
+    .trim();
+    #[rustfmt::skip]
     check_errors_match(code, &[
         (8, 23, "/atom/movable/proc/bar calls /atom/movable/proc/foo which has override child proc that sleeps /mob/proc/foo"),
     ]);
 }
-
-const SLEEP_ERROR4: &[(u32, u16, &str)] = &[
-    (1, 16, "/mob/proc/test1 sets SpacemanDMM_should_not_sleep but calls blocking built-in(s)"),
-    (1, 16, "/mob/proc/test1 sets SpacemanDMM_should_not_sleep but calls blocking proc /mob/proc/test2"),
-    (1, 16, "/mob/proc/test1 sets SpacemanDMM_should_not_sleep but calls blocking proc /client/proc/checksoundquery"),
-    (1, 16, "/mob/proc/test1 sets SpacemanDMM_should_not_sleep but calls blocking proc /client/proc/checkmeasuretext"),
-    (1, 16, "/mob/proc/test1 sets SpacemanDMM_should_not_sleep but calls blocking proc /world/proc/checkimport"),
-    (1, 16, "/mob/proc/test1 sets SpacemanDMM_should_not_sleep but calls blocking proc /world/proc/checkexport"),
-];
 
 #[test]
 fn sleep4() {
@@ -145,15 +135,20 @@ fn sleep4() {
 /mob/proc/test2()
     var/client/C = new /client
     C.MeasureText()
-"##.trim();
-    check_errors_match(code, SLEEP_ERROR4);
+"##
+    .trim();
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (1, 16, "/mob/proc/test1 sets SpacemanDMM_should_not_sleep but calls blocking built-in(s)"),
+        (1, 16, "/mob/proc/test1 sets SpacemanDMM_should_not_sleep but calls blocking proc /mob/proc/test2"),
+        (1, 16, "/mob/proc/test1 sets SpacemanDMM_should_not_sleep but calls blocking proc /client/proc/checksoundquery"),
+        (1, 16, "/mob/proc/test1 sets SpacemanDMM_should_not_sleep but calls blocking proc /client/proc/checkmeasuretext"),
+        (1, 16, "/mob/proc/test1 sets SpacemanDMM_should_not_sleep but calls blocking proc /world/proc/checkimport"),
+        (1, 16, "/mob/proc/test1 sets SpacemanDMM_should_not_sleep but calls blocking proc /world/proc/checkexport"),
+    ]);
 }
 
 // Test overrides and for regression of issue #267
-const SLEEP_ERROR5: &[(u32, u16, &str)] = &[
-    (7, 19, "/datum/sub/proc/checker sets SpacemanDMM_should_not_sleep but calls blocking proc /proc/sleeper"),
-];
-
 #[test]
 fn sleep5() {
     let code = r##"
@@ -171,15 +166,15 @@ fn sleep5() {
 
 /datum/hijack/proxy()
         sleep(1)
-"##.trim();
-    check_errors_match(code, SLEEP_ERROR5);
+"##
+    .trim();
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (7, 19, "/datum/sub/proc/checker sets SpacemanDMM_should_not_sleep but calls blocking proc /proc/sleeper"),
+    ]);
 }
 
 // Test overrides and for regression of issue #355
-const SLEEP_ERROR6: &[(u32, u16, &str)] = &[
-    (4, 24, "/datum/choiced/proc/is_valid sets SpacemanDMM_should_not_sleep but calls blocking proc /proc/stoplag"),
-];
-
 #[test]
 fn sleep6() {
     let code = r##"
@@ -199,8 +194,12 @@ fn sleep6() {
 
 /proc/stoplag()
     sleep(1)
-"##.trim();
-    check_errors_match(code, SLEEP_ERROR6);
+"##
+    .trim();
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (4, 24, "/datum/choiced/proc/is_valid sets SpacemanDMM_should_not_sleep but calls blocking proc /proc/stoplag"),
+    ]);
 }
 
 // When there are transitive errors for a sleeping proc (sleep_caller in this case) only the first will be returned
@@ -220,15 +219,12 @@ fn sleep7() {
 /proc/nosleep2()
     set SpacemanDMM_should_not_sleep = 1
     sleep_caller()
-"##.trim();
-    let context = parse_a_file_for_test(code);
-    let errors = context.errors();
-    assert_eq!(1, errors.len());
-
-    // the parser or dreamchecker does shit in a random order and i CBA to find out why
-    for error in errors.iter() {
-        assert_eq!("must_not_sleep", error.errortype().unwrap());
-    }
+"##
+    .trim();
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (7, 15, "/proc/nosleep1 sets SpacemanDMM_should_not_sleep but calls blocking proc /proc/sleeper"),
+    ]);
 }
 
 // Testing a possible infinite loop?
@@ -248,7 +244,9 @@ fn sleep8() {
 /proc/nosleep()
     set SpacemanDMM_should_not_sleep = 1
     sleep_caller()
-"##.trim();
+"##
+    .trim();
+    #[rustfmt::skip]
     check_errors_match(code, &[
         (11, 14, "/proc/nosleep sets SpacemanDMM_should_not_sleep but calls blocking proc /proc/sleeper"),
     ]);
@@ -271,16 +269,13 @@ fn sleep9() {
 
 /datum/override2/CommonProc()
     sleep(1)
-"##.trim();
+"##
+    .trim();
     check_errors_match(code, &[]);
 }
 
 // /obj is a "redirected" child of /atom/movable, not a path-descendant, so a
 // sleeping override under /obj used to be invisible to dispatch on /atom.
-const SLEEP_ERROR10: &[(u32, u16, &str)] = &[
-    (1, 14, "/proc/perform calls /atom/proc/container_resist_act which has override child proc that sleeps /obj/machinery/dna_scannernew/proc/container_resist_act"),
-];
-
 #[test]
 fn sleep10() {
     let code = r##"
@@ -294,6 +289,10 @@ fn sleep10() {
 
 /obj/machinery/dna_scannernew/container_resist_act()
     sleep(1)
-"##.trim();
-    check_errors_match(code, SLEEP_ERROR10);
+"##
+    .trim();
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (1, 14, "/proc/perform calls /atom/proc/container_resist_act which has override child proc that sleeps /obj/machinery/dna_scannernew/proc/container_resist_act"),
+    ]);
 }

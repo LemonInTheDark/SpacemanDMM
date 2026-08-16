@@ -1,13 +1,4 @@
-extern crate dreamchecker as dc;
-
-use dc::test_helpers::check_errors_match;
-
-pub const IN_AMBIG_ERRORS: &[(u32, u16, &str)] = &[
-    (2, 7, "ambiguous `!` on left side of an `in`"),
-    (6, 7, "ambiguous `&&` on left side of an `in`"),
-    (11, 7, "ambiguous `=` on left side of an `in`"),
-    (15, 7, "ambiguous ternary on left side of an `in`"),
-];
+use dreamchecker::test_helpers::*;
 
 #[test]
 fn in_ambig() {
@@ -32,14 +23,14 @@ fn in_ambig() {
         return
 "##
     .trim();
-    check_errors_match(code, IN_AMBIG_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (2, 7, "ambiguous `!` on left side of an `in`"),
+        (6, 7, "ambiguous `&&` on left side of an `in`"),
+        (11, 7, "ambiguous `=` on left side of an `in`"),
+        (15, 7, "ambiguous ternary on left side of an `in`"),
+    ]);
 }
-
-pub const TERNARY_IN_AMBIG_ERRORS: &[(u32, u16, &str)] = &[(
-    2,
-    14,
-    "got \'in\', expected one of: operator, field access, \':\'",
-)];
 
 #[test]
 fn ambig_in_ternary_cond() {
@@ -49,14 +40,11 @@ fn ambig_in_ternary_cond() {
         return
 "##
     .trim();
-    check_errors_match(code, TERNARY_IN_AMBIG_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (2, 14, "got 'in', expected one of: operator, field access, ':'"),
+    ]);
 }
-
-pub const OP_OVERLOAD_ERRORS: &[(u32, u16, &str)] = &[(
-    6,
-    6,
-    "Attempting operator++ on a /mob which does not overload operator++",
-)];
 
 #[test]
 fn operator_overload() {
@@ -71,14 +59,11 @@ fn operator_overload() {
     T++
 "##
     .trim();
-    check_errors_match(code, OP_OVERLOAD_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (6, 6, "Attempting operator++ on a /mob which does not overload operator++"),
+    ]);
 }
-
-pub const NOT_AMBIG_BITWISE_ERRORS: &[(u32, u16, &str)] = &[
-    (2, 8, "Ambiguous `!` on left side of bitwise `&` operator"),
-    (4, 8, "Ambiguous `!` on left side of bitwise `|` operator"),
-    (6, 8, "Ambiguous `!` on left side of bitwise `^` operator"),
-];
 
 #[test]
 fn ambigous_not_bitwise() {
@@ -96,5 +81,10 @@ fn ambigous_not_bitwise() {
         return
 "##
     .trim();
-    check_errors_match(code, NOT_AMBIG_BITWISE_ERRORS);
+    #[rustfmt::skip]
+    check_errors_match(code, &[
+        (2, 8, "Ambiguous `!` on left side of bitwise `&` operator"),
+        (4, 8, "Ambiguous `!` on left side of bitwise `|` operator"),
+        (6, 8, "Ambiguous `!` on left side of bitwise `^` operator"),
+    ]);
 }

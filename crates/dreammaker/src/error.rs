@@ -15,18 +15,14 @@ use crate::config::Config;
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct FileId(u16);
 
-impl GetSize for FileId {}
-
-const FILEID_BUILTINS: FileId = FileId(0x0000);
-const FILEID_MIN: FileId = FileId(0x0001);
-const FILEID_MAX: FileId = FileId(0xfffe);
-const FILEID_BAD: FileId = FileId(0xffff);
-
-impl Default for FileId {
-    fn default() -> FileId {
-        FILEID_BAD
-    }
+impl FileId {
+    const BUILTINS: FileId = FileId(0x0000);
+    const MIN: FileId = FileId(0x0001);
+    const MAX: FileId = FileId(0xfffe);
+    pub const INVALID: FileId = FileId(0xffff);
 }
+
+impl GetSize for FileId {}
 
 /// A registry mapping between file names and file IDs.
 #[derive(Debug, Default, Clone)]
@@ -57,12 +53,12 @@ impl FileList {
             return id;
         }
         let mut files = self.files.borrow_mut();
-        if files.len() > FILEID_MAX.0 as usize {
-            panic!("file limit of {} exceeded", FILEID_MAX.0);
+        if files.len() > FileId::MAX.0 as usize {
+            panic!("file limit of {} exceeded", FileId::MAX.0);
         }
         let len = files.len() as u16;
         files.push(path.to_owned());
-        let id = FileId(len + FILEID_MIN.0);
+        let id = FileId(len + FileId::MIN.0);
         self.reverse_files.borrow_mut().insert(path.to_owned(), id);
         id
     }
@@ -75,10 +71,10 @@ impl FileList {
     /// Look up a file path by its index returned from `register_file`.
     pub fn get_path(&self, file: FileId) -> Ref<'_, Path> {
         let files = self.files.borrow();
-        if file == FILEID_BUILTINS {
+        if file == FileId::BUILTINS {
             return Ref::map(files, |_| Path::new("(builtins)"));
         }
-        let idx = (file.0 - FILEID_MIN.0) as usize;
+        let idx = (file.0 - FileId::MIN.0) as usize;
         if idx > files.len() {
             Ref::map(files, |_| Path::new("(unknown)"))
         } else {
@@ -183,12 +179,12 @@ impl Context {
         if !self.config.registerable_error(&error) {
             return;
         }
-        if let Some(print_severity) = self.print_severity {
-            if error.severity() <= print_severity {
-                let stderr = termcolor::StandardStream::stderr(termcolor::ColorChoice::Auto);
-                self.pretty_print_error(&mut stderr.lock(), &error)
-                    .expect("error writing to stderr");
-            }
+        if let Some(print_severity) = self.print_severity
+            && error.severity() <= print_severity
+        {
+            let stderr = termcolor::StandardStream::stderr(termcolor::ColorChoice::Auto);
+            self.pretty_print_error(&mut stderr.lock(), &error)
+                .expect("error writing to stderr");
         }
         self.errors.borrow_mut().push(error);
     }
@@ -225,7 +221,7 @@ impl Context {
 
         for note in error.notes().iter() {
             if note.location == error.location {
-                writeln!(w, "- {}", note.description,)?;
+                writeln!(w, "- {}", note.description)?;
             } else if note.location.file == error.location.file {
                 writeln!(
                     w,
@@ -285,7 +281,7 @@ impl Context {
 // Location handling
 
 /// File, line, and column information for an error.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default, GetSize)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, GetSize)]
 pub struct Location {
     /// The index into the file table.
     pub file: FileId,
@@ -296,13 +292,17 @@ pub struct Location {
 }
 
 impl Location {
-    pub const fn builtins() -> Location {
-        Location {
-            file: FILEID_BUILTINS,
-            line: 1,
-            column: 1,
-        }
-    }
+    pub const BUILTINS: Location = Location {
+        file: FileId::BUILTINS,
+        line: 1,
+        column: 1,
+    };
+
+    pub const INVALID: Location = Location {
+        file: FileId::INVALID,
+        line: 1,
+        column: 1,
+    };
 
     /// Pack this Location for use in `u64`-keyed structures.
     pub fn pack(self) -> u64 {
@@ -316,7 +316,7 @@ impl Location {
         } else if self.line != 0 {
             self.column = !0;
             self.line -= 1;
-        } else if self.file == FILEID_BAD {
+        } else if self.file == FileId::INVALID {
             // This file ID generally comes from using Location::default().
             // In that case hopefully it's a test or something, so just let it
             // stay 0:0.
@@ -336,7 +336,7 @@ impl Location {
     }
 
     pub fn is_builtins(self) -> bool {
-        self.file == FILEID_BUILTINS
+        self.file == FileId::BUILTINS
     }
 }
 
@@ -465,7 +465,7 @@ impl DMError {
         self.with_boxed_cause(Box::new(cause))
     }
 
-    pub fn set_severity(mut self, severity: Severity) -> DMError {
+    pub fn with_severity(mut self, severity: Severity) -> DMError {
         self.severity = severity;
         self
     }
@@ -543,7 +543,7 @@ impl fmt::Display for DMError {
         )?;
         for note in self.notes.iter() {
             if note.location == self.location {
-                write!(f, "\n- {}", note.description,)?;
+                write!(f, "\n- {}", note.description)?;
             } else {
                 write!(
                     f,
